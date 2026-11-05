@@ -1,0 +1,14 @@
+.build/
+Prototypes/**/out/
+.DS_Store
+.superpowers/
+.remember/
+.claude/
+Runtime.bundle/
+DerivedData/
+xcuserdata/
+Runtime-cache/
+Mpv.bundle/
+__pycache__/
+build/
+dist/

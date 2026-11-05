@@ -1,0 +1,14 @@
+{
+  "AAAAAAAAAAA": {"titles": [{"title": "A good title", "original": false, "votes": 3, "locked": false}],
+                  "thumbnails": [{"timestamp": 42.1, "original": false, "votes": 1, "locked": false}],
+                  "randomTime": 0.3, "videoDuration": 600},
+  "BBBBBBBBBBB": {"titles": [{"title": "> Quoted title", "original": false, "votes": 2, "locked": false}],
+                  "thumbnails": [], "randomTime": 0.3, "videoDuration": 600},
+  "CCCCCCCCCCC": {"titles": [{"title": "Downvoted", "original": false, "votes": -1, "locked": false}],
+                  "thumbnails": [], "randomTime": 0.3, "videoDuration": 600},
+  "DDDDDDDDDDD": {"titles": [{"title": "With original thumb", "original": false, "votes": 1, "locked": false}],
+                  "thumbnails": [{"timestamp": null, "original": true, "votes": 5, "locked": false}],
+                  "randomTime": 0.3, "videoDuration": 600},
+  "bad/id": {"titles": [{"title": "Nope", "original": false, "votes": 3, "locked": false}],
+             "thumbnails": [], "randomTime": 0.3, "videoDuration": 600}
+}

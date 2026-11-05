@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- The spec's three, plus the one exception the hardened runtime needs here. No get-task-allow. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>com.apple.security.assets.movies.read-write</key>
+	<true/>
+	<!-- Library validation only accepts libraries signed by Apple or by the app's own Team ID, and a self-signed
+	     identity has none, so the bundled libmpv/MoltenVK/Python libraries would be refused. The hardened runtime
+	     still strips DYLD_* variables (no allow-dyld-environment-variables). -->
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+	<!-- ~/.config/matinee/settings.json, the settings as JSON (SettingsSync); only that folder. -->
+	<key>com.apple.security.temporary-exception.files.home-relative-path.read-write</key>
+	<array>
+		<string>/.config/matinee/</string>
+	</array>
+</dict>
+</plist>

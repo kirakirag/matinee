@@ -1,0 +1,9 @@
+# Pinned runtime for Matinee's yt-dlp worker. Checksums come from each release's own published sums.
+# python-build-standalone 20261026, SHA256SUMS
+PYTHON_URL=https://github.com/astral-sh/python-build-standalone/releases/download/20261026/cpython-3.13.18%2B20261026-aarch64-apple-darwin-install_only_stripped.tar.gz
+PYTHON_SHA256=8392b6ea51d94391befb2c31ebe75463f045d0b69dfcf5e1bb3234e1f5fa3405
+# denoland/deno v2.9.8, deno-aarch64-apple-darwin.zip.sha256sum
+DENO_VERSION=2.9.8
+DENO_URL=https://github.com/denoland/deno/releases/download/v2.9.8/deno-aarch64-apple-darwin.zip
+DENO_SHA256=9f0bf660393da2eaff044cdc7444cb08c73f235849b61d224d825a194ce7c98e
+YTDLP_VERSION=2026.10.21
