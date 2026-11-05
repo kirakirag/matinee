@@ -1,0 +1,53 @@
+{
+ "subscriptions": [
+  "74 Gear",
+  "Computerphile"
+ ],
+ "recent": [
+  {
+   "title": "Passenger: \"I Have NO Idea\"",
+   "channel": "74 Gear",
+   "watched": 0.001
+  },
+  {
+   "title": "CS336 Lecture 2",
+   "channel": "Stanford Online",
+   "watched": 0.5
+  },
+  {
+   "title": "Ünïcode — 日本 \\ tab\there",
+   "channel": "X",
+   "watched": null
+  },
+  {
+   "title": "Done",
+   "channel": "Y",
+   "watched": 0.9
+  }
+ ],
+ "dismissed": [
+  "Talk show"
+ ],
+ "profile": "Channels they subscribe to: 74 Gear, Computerphile\n\nRecently watched, newest first:\n- Passenger: \"I Have NO Idea\" — 74 Gear (left early)\n- CS336 Lecture 2 — Stanford Online (partly)\n- Ünïcode — 日本 \\ tab\there — X\n- Done — Y (finished)\n\nThey said they're not interested in:\n- Talk show",
+ "candidates": [
+  {
+   "title": "Lecture 3",
+   "channel": "Stanford Online",
+   "seconds": 5354,
+   "prompt": "<|im_start|>system\nApply the supplied criterion to the supplied evidence. Choose exactly one listed option. Respond with only its uppercase letter, with no explanation or reasoning.<|im_end|>\n<|im_start|>user\n{\"evidence\": \"Channels they subscribe to: 74 Gear, Computerphile\\n\\nRecently watched, newest first:\\n- Passenger: \\\"I Have NO Idea\\\" — 74 Gear (left early)\\n- CS336 Lecture 2 — Stanford Online (partly)\\n- Ünïcode — 日本 \\\\ tab\\there — X\\n- Done — Y (finished)\\n\\nThey said they're not interested in:\\n- Talk show\", \"criterion\": \"Would this viewer want to watch this YouTube video? Judge by their actual interests and channels, not popularity; videos they left early count less. The video: Lecture 3 — Stanford Online (1 h 29 min)\", \"options\": [{\"letter\": \"A\", \"description\": \"true: Yes, they would want to watch it.\"}, {\"letter\": \"B\", \"description\": \"false: No, they would not want to watch it.\"}]}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+  },
+  {
+   "title": "Short",
+   "channel": "Z",
+   "seconds": 30,
+   "prompt": "<|im_start|>system\nApply the supplied criterion to the supplied evidence. Choose exactly one listed option. Respond with only its uppercase letter, with no explanation or reasoning.<|im_end|>\n<|im_start|>user\n{\"evidence\": \"Channels they subscribe to: 74 Gear, Computerphile\\n\\nRecently watched, newest first:\\n- Passenger: \\\"I Have NO Idea\\\" — 74 Gear (left early)\\n- CS336 Lecture 2 — Stanford Online (partly)\\n- Ünïcode — 日本 \\\\ tab\\there — X\\n- Done — Y (finished)\\n\\nThey said they're not interested in:\\n- Talk show\", \"criterion\": \"Would this viewer want to watch this YouTube video? Judge by their actual interests and channels, not popularity; videos they left early count less. The video: Short — Z (1 min)\", \"options\": [{\"letter\": \"A\", \"description\": \"true: Yes, they would want to watch it.\"}, {\"letter\": \"B\", \"description\": \"false: No, they would not want to watch it.\"}]}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+  },
+  {
+   "title": "NoLen",
+   "channel": "Z",
+   "seconds": null,
+   "prompt": "<|im_start|>system\nApply the supplied criterion to the supplied evidence. Choose exactly one listed option. Respond with only its uppercase letter, with no explanation or reasoning.<|im_end|>\n<|im_start|>user\n{\"evidence\": \"Channels they subscribe to: 74 Gear, Computerphile\\n\\nRecently watched, newest first:\\n- Passenger: \\\"I Have NO Idea\\\" — 74 Gear (left early)\\n- CS336 Lecture 2 — Stanford Online (partly)\\n- Ünïcode — 日本 \\\\ tab\\there — X\\n- Done — Y (finished)\\n\\nThey said they're not interested in:\\n- Talk show\", \"criterion\": \"Would this viewer want to watch this YouTube video? Judge by their actual interests and channels, not popularity; videos they left early count less. The video: NoLen — Z\", \"options\": [{\"letter\": \"A\", \"description\": \"true: Yes, they would want to watch it.\"}, {\"letter\": \"B\", \"description\": \"false: No, they would not want to watch it.\"}]}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+  }
+ ],
+ "source": "Generated with the prompt code of the blind test's jury.py (jevk5_prompt), json.dumps(ensure_ascii=False)."
+}

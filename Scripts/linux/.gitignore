@@ -1,0 +1,4 @@
+.build/
+Package.resolved
+Sources/MatineeKit/
+Tests/

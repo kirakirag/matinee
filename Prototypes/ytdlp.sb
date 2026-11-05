@@ -1,0 +1,23 @@
+(version 1)
+(deny default)
+; CACHE and SCRIPT are passed with -D NAME=<abs path>
+(allow process-fork)
+(allow process-exec
+  (subpath "/opt/homebrew"))
+(allow file-read*
+  (subpath "/opt/homebrew")
+  (subpath "/System")
+  (subpath "/usr")
+  (subpath "/private/etc")
+  (subpath "/dev")
+  (subpath (param "CACHE"))
+  (literal "/")                         ; Python resolves paths from the root
+  (literal (param "SCRIPT")))
+(allow file-read-metadata)
+(allow file-write*
+  (subpath (param "CACHE"))
+  (literal "/dev/null"))
+(allow network-outbound)
+(allow system-socket)
+(allow sysctl-read)
+(allow mach-lookup)
