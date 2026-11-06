@@ -15,8 +15,13 @@ import Observation
     init(player: PlaybackController) {
         self.player = player
         let center = MPRemoteCommandCenter.shared()
-        add(center.togglePlayPauseCommand) { p, _ in p.isPaused || !p.isPresented ? p.resume() : p.handle(.togglePause) }
-        add(center.playCommand) { p, _ in if p.isPaused || !p.isPresented { p.resume() } }
+        // A mini player stays mini: play and pause act on it in place.
+        add(center.togglePlayPauseCommand) { p, _ in
+            if p.isMini { p.handle(.togglePause) } else if p.isPaused || !p.isPresented { p.resume() } else { p.handle(.togglePause) }
+        }
+        add(center.playCommand) { p, _ in
+            if p.isMini { if p.isPaused { p.handle(.togglePause) } } else if p.isPaused || !p.isPresented { p.resume() }
+        }
         add(center.pauseCommand) { p, _ in if !p.isPaused { p.handle(.togglePause) } }
         add(center.nextTrackCommand) { p, _ in p.handle(.next) }
         add(center.previousTrackCommand) { p, _ in p.handle(.previous) }
@@ -53,7 +58,7 @@ import Observation
     private func publishIfNeeded() {
         guard let p = player else { return }
         let center = MPNowPlayingInfoCenter.default()
-        guard let item = p.item, p.phase == .playing || p.isPresented else {
+        guard let item = p.item, p.phase == .playing || p.isPresented || p.isMini else {
             if center.nowPlayingInfo != nil { center.nowPlayingInfo = nil; center.playbackState = .stopped }
             return
         }

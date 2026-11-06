@@ -159,7 +159,7 @@ final class MPVPlayer {
         case .volume(let v): command(["add", "volume", String(v)])
         case .speedStep(let n):
             set(speed: min(max(speed + Double(n) * 0.25, 0.25), 4.0))
-        case .fullscreen, .exitFullscreen, .close, .next, .previous, .openChannel, .quality, .undoSkip, .saveOffline, .toggleComments, .toggleSubscription: break
+        case .fullscreen, .exitFullscreen, .close, .next, .previous, .openChannel, .quality, .undoSkip, .saveOffline, .toggleComments, .toggleSubscription, .miniPlayer: break
         }
     }
 

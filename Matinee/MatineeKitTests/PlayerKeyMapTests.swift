@@ -16,6 +16,7 @@ struct PlayerKeyMapTests {
         #expect(cmd("", special: .up) == .volume(5))
         #expect(cmd("", special: .down) == .volume(-5))
         #expect(cmd("f") == .fullscreen)
+        #expect(cmd("i") == .miniPlayer)
         #expect(cmd(",") == .speedStep(-1))
         #expect(cmd(".") == .speedStep(1))
         #expect(cmd("", special: .escape) == .close)

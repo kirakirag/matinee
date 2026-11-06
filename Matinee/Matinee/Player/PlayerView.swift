@@ -4,7 +4,7 @@ import SwiftUI
 
 /// The in-window player: mpv's view, the list's thumbnail and title until the first frame, the phase and the controls.
 /// It stays in the window while dismissed, hidden: mpv's view is never re-created, and it only reports the first
-/// frame while it draws.
+/// frame while it draws. The mini player (I) is the same view, shrunk to the window's bottom-right corner.
 struct PlayerView: View {
     let player: PlaybackController
     @State private var controlsVisible = true
@@ -21,46 +21,69 @@ struct PlayerView: View {
                 LiveTextLayer(player: player)
             }
             if player.phase != .playing, let item = player.item {
-                placeholder(item)
+                if player.isMini {
+                    Thumbnail(videoId: item.videoId, url: item.thumbnailURL, channelId: item.channelId).overlay { status }
+                } else {
+                    placeholder(item)
+                }
             }
             if player.phase == .playing, player.isBuffering {
-                ProgressView().controlSize(.large).padding(16).background(.black.opacity(0.5), in: .circle)
+                ProgressView().controlSize(player.isMini ? .regular : .large).padding(player.isMini ? 8 : 16)
+                    .background(.black.opacity(0.5), in: .circle)
             }
-            if player.phase == .playing {
-                PlayerControls(player: player)
-                    .frame(maxHeight: .infinity, alignment: .bottom)
-                    .opacity(controlsVisible ? 1 : 0)
-                    .allowsHitTesting(controlsVisible)
-            }
-            if let notice = player.skipNotice {
-                // Above the controls, and shown while they are hidden too.
-                Text(notice)
-                    .font(.callout.weight(.medium))
-                    .padding(.horizontal, 14).padding(.vertical, 7)
-                    .background(.regularMaterial, in: .capsule)
-                    .frame(maxHeight: .infinity, alignment: .bottom)
-                    .padding(.bottom, 64)
-                    .transition(.opacity)
-                    .allowsHitTesting(false)
-            }
-            if player.panelVisible, PlaybackController.commentsEnabled || PlaybackController.upNextEnabled {
-                SidePanel(player: player)
-                    .frame(width: 380)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
-                    .transition(.move(edge: .trailing))
-            }
-            if let selected = player.qualityMenuIndex {
-                QualityList(choices: player.qualityChoices, savedHeight: player.savedHeight, selected: selected)
+            if player.isMini {
+                MiniOverlay(player: player)
+            } else {
+                fullOverlays
             }
         }
+        .frame(width: player.isMini ? Self.miniWidth : nil, height: player.isMini ? Self.miniWidth * 9 / 16 : nil)
+        .clipShape(.rect(cornerRadius: player.isMini ? 10 : 0))
+        .shadow(color: .black.opacity(player.isMini ? 0.35 : 0), radius: 12, y: 4)
+        .padding(player.isMini ? 16 : 0)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
         .ignoresSafeArea(edges: player.isFullscreen ? .all : [])
-        .opacity(player.isPresented ? 1 : 0)
-        .allowsHitTesting(player.isPresented)
+        .opacity(player.isPresented || player.isMini ? 1 : 0)
+        .allowsHitTesting(player.isPresented || player.isMini)
         .onContinuousHover { if case .active = $0 { showControls() } }
         .onChange(of: player.commandCount) { showControls() }
         .onChange(of: player.isPaused) { showControls() }
         .onChange(of: player.phase) { showControls() }
         .animation(.easeInOut(duration: 0.2), value: player.skipNotice)
+        // Only between two visible states: closing the mini player hides it at once rather than growing a black box.
+        .animation(player.isPresented || player.isMini ? .easeInOut(duration: 0.25) : nil, value: player.isMini)
+    }
+
+    private static let miniWidth: CGFloat = 320
+
+    /// The full player's controls, notices, side panel and quality list.
+    @ViewBuilder private var fullOverlays: some View {
+        if player.phase == .playing {
+            PlayerControls(player: player)
+                .frame(maxHeight: .infinity, alignment: .bottom)
+                .opacity(controlsVisible ? 1 : 0)
+                .allowsHitTesting(controlsVisible)
+        }
+        if let notice = player.skipNotice {
+            // Above the controls, and shown while they are hidden too.
+            Text(notice)
+                .font(.callout.weight(.medium))
+                .padding(.horizontal, 14).padding(.vertical, 7)
+                .background(.regularMaterial, in: .capsule)
+                .frame(maxHeight: .infinity, alignment: .bottom)
+                .padding(.bottom, 64)
+                .transition(.opacity)
+                .allowsHitTesting(false)
+        }
+        if player.panelVisible, PlaybackController.commentsEnabled || PlaybackController.upNextEnabled {
+            SidePanel(player: player)
+                .frame(width: 380)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+                .transition(.move(edge: .trailing))
+        }
+        if let selected = player.qualityMenuIndex {
+            QualityList(choices: player.qualityChoices, savedHeight: player.savedHeight, selected: selected)
+        }
     }
 
     private func placeholder(_ item: PlaybackController.Item) -> some View {
@@ -131,6 +154,53 @@ private struct QualityList: View {
         .padding(6)
         .background(.regularMaterial, in: .rect(cornerRadius: 10))
         .environment(\.colorScheme, .dark)
+    }
+}
+
+/// The mini player's controls: a click brings the full player back; on hover, play/pause, expand and close.
+private struct MiniOverlay: View {
+    let player: PlaybackController
+    @State private var hovering = false
+
+    var body: some View {
+        ZStack {
+            Color.clear.contentShape(.rect).onTapGesture { player.resume() }
+            if hovering {
+                Color.black.opacity(0.35).allowsHitTesting(false)
+                Button { player.handle(.togglePause) } label: {
+                    Image(systemName: player.isPaused ? "play.fill" : "pause.fill").font(.title)
+                }
+                .help(player.isPaused ? "Play" : "Pause")
+                VStack {
+                    HStack {
+                        Button { player.resume() } label: { Image(systemName: "arrow.up.left.and.arrow.down.right") }
+                            .help("Back to the Player (⌘P)")
+                        Spacer()
+                        Button { player.dismiss() } label: { Image(systemName: "xmark") }
+                            .help("Close")
+                    }
+                    Spacer()
+                }
+                .font(.title3)
+                .padding(10)
+            }
+        }
+        .buttonStyle(.borderless)
+        .focusable(false)
+        .foregroundStyle(.white)
+        .overlay(alignment: .bottom) { progress }
+        .onHover { hovering = $0 }
+        .animation(.easeInOut(duration: 0.15), value: hovering)
+    }
+
+    @ViewBuilder private var progress: some View {
+        if player.phase == .playing, let duration = player.duration, duration > 0 {
+            GeometryReader { g in
+                Color.accentColor.frame(width: g.size.width * min(max(player.position / duration, 0), 1))
+            }
+            .frame(height: 3)
+            .allowsHitTesting(false)
+        }
     }
 }
 

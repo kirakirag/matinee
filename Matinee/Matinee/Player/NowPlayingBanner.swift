@@ -5,7 +5,7 @@ struct NowPlayingBanner: View {
     @Environment(PlaybackController.self) private var player: PlaybackController?
 
     var body: some View {
-        if let player, let item = player.item, !player.isPresented {
+        if let player, let item = player.item, !player.isPresented, !player.isMini {
             Button { player.resume() } label: {
                 HStack(spacing: 10) {
                     Thumbnail(videoId: item.videoId, url: item.thumbnailURL, channelId: item.channelId).frame(width: 64)

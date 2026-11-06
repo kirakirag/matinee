@@ -79,6 +79,8 @@ import os
     @ObservationIgnored var onSingleOpen: ((Item, Int) -> Void)?
     private(set) var phase = Phase.idle
     private(set) var isPresented = false
+    /// Shrunk to a corner of the window (I), still playing while you browse.
+    private(set) var isMini = false
     private(set) var braveError: String?
     /// "Skipped Sponsor · U to undo", shown briefly after a SponsorBlock skip.
     private(set) var skipNotice: String?
@@ -185,6 +187,7 @@ import os
 
     /// Opens one video and clears any queue.
     func open(_ item: Item) {
+        isMini = false
         queueToken += 1
         queue = nil
         queueInfo = nil
@@ -199,6 +202,7 @@ import os
         queueToken += 1
         let queue = PlayQueue(items, start: start)
         guard let first = queue.current else { return queueToken }
+        isMini = false
         self.queue = queue
         queueTitle = title
         publishQueue()
@@ -255,7 +259,7 @@ import os
         playingSaved = false
         savedHeight = nil
         streamSaved = false
-        isPresented = true
+        isPresented = !isMini   // the queue advancing keeps a mini player mini
         phase = .resolving
         braveError = nil
         position = 0
@@ -281,10 +285,12 @@ import os
         saveHistory()
         player.pause()
         isPresented = false
+        isMini = false
     }
 
     func resume() {
         guard item != nil else { return }
+        isMini = false
         isPresented = true
         player.play()
     }
@@ -293,6 +299,13 @@ import os
         commandCount += 1
         switch c {
         case .close: dismiss()
+        case .miniPlayer:
+            if isMini { resume(); return }
+            guard isPresented else { return }
+            leaveFullscreen()
+            qualityMenuIndex = nil
+            isPresented = false
+            isMini = true
         case .fullscreen: NSApp.keyWindow?.toggleFullScreen(nil)
         case .exitFullscreen: leaveFullscreen()
         case .next:

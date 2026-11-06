@@ -84,6 +84,7 @@ In the player:
 | ↑ ↓, - = | Volume |
 | , . | Slower or faster |
 | F | Fullscreen |
+| I | Mini player: the video keeps playing in a corner while you browse. Click it or press ⌘P to bring it back |
 | ⇧N | Next in the playlist, or the first "Up next" video when there's no playlist |
 | ⇧P | Previous in the playlist |
 | O | Comments and Up next panel (↑ ↓ to move, Return to open, Tab to switch tabs, Escape to close) |
