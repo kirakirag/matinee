@@ -1,13 +1,15 @@
 #!/bin/bash
 # Creates the stable local code-signing identity "Matinee Local Signing" in the login keychain, so every install is
 # signed the same way and macOS keeps treating it as the same app. Does nothing if it already exists.
-# Usage: Scripts/make_signing_identity.sh   (macOS asks for your password once, to trust the certificate for signing)
+# Usage: Scripts/make_signing_identity.sh
+# The certificate is not marked trusted: codesign doesn't need that, and the app's designated requirement pins the
+# certificate's hash, which is what keeps it the same app across installs.
 set -euo pipefail
 
 CN="Matinee Local Signing"
 KEYCHAIN="$HOME/Library/Keychains/login.keychain-db"
 
-identities=$(security find-identity -v -p codesigning)
+identities=$(security find-identity -p codesigning)
 if [[ "$identities" == *"\"$CN\""* ]]; then
     echo "$CN already exists."
     exit 0
@@ -33,11 +35,10 @@ CONF
 # The p12 password only protects the temporary file.
 /usr/bin/openssl pkcs12 -export -inkey "$tmp/key.pem" -in "$tmp/cert.pem" -name "$CN" -out "$tmp/id.p12" -passout pass:matinee
 security import "$tmp/id.p12" -k "$KEYCHAIN" -P matinee -T /usr/bin/codesign
-security add-trusted-cert -r trustRoot -p codeSign -k "$KEYCHAIN" "$tmp/cert.pem"
 
-identities=$(security find-identity -v -p codesigning)
+identities=$(security find-identity -p codesigning)
 if [[ "$identities" != *"\"$CN\""* ]]; then
-    echo "$CN was imported but is not a valid signing identity; check it in Keychain Access." >&2
+    echo "$CN was imported but is not a signing identity; check it in Keychain Access." >&2
     exit 1
 fi
 echo "Created $CN."

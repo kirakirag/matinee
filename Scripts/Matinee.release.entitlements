@@ -9,6 +9,10 @@
 	<true/>
 	<key>com.apple.security.assets.movies.read-write</key>
 	<true/>
+	<!-- The open panel, and reading the file picked in it (Settings' Takeout import). Debug builds get this from
+	     ENABLE_USER_SELECTED_FILES. -->
+	<key>com.apple.security.files.user-selected.read-only</key>
+	<true/>
 	<!-- Library validation only accepts libraries signed by Apple or by the app's own Team ID, and a self-signed
 	     identity has none, so the bundled libmpv/MoltenVK/Python libraries would be refused. The hardened runtime
 	     still strips DYLD_* variables (no allow-dyld-environment-variables). -->

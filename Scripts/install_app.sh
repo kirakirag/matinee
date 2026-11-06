@@ -42,7 +42,7 @@ fi
 product=build/install/Build/Products/Release/Matinee.app
 
 # 4. Stage and re-sign inside out: helpers first, the app last.
-identities=$(security find-identity -v -p codesigning)
+identities=$(security find-identity -p codesigning)
 if [[ "$identities" != *"\"$IDENTITY\""* ]]; then
     # An ad hoc signature changes with every build, and macOS would then keep each new release out of the sandbox
     # container the previous one made.
@@ -71,6 +71,12 @@ entitlements=$(codesign -d --entitlements - "$app" 2>/dev/null)
 for forbidden in get-task-allow allow-dyld-environment-variables allow-jit allow-unsigned-executable-memory; do
     if [[ "$entitlements" == *"$forbidden"* ]]; then
         echo "The staged app has $forbidden." >&2
+        exit 1
+    fi
+done
+for required in app-sandbox network.client assets.movies.read-write files.user-selected.read-only; do
+    if [[ "$entitlements" != *"com.apple.security.$required"* ]]; then
+        echo "The staged app lacks com.apple.security.$required." >&2
         exit 1
     fi
 done
