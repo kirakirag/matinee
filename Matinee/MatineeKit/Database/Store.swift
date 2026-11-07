@@ -186,6 +186,24 @@ public final class Store: Sendable {
         }
     }
 
+    /// Subscribes to the channels not already subscribed, leaving existing ones as they are; returns how many were new.
+    public func addSubscriptions(_ channels: [Channel]) throws -> Int {
+        try db.withLock { db in
+            let sql = "SELECT COUNT(*) FROM channel"
+            let before = try db.query(sql) { $0.int(0) ?? 0 }.first ?? 0
+            try db.transaction {
+                for c in channels {
+                    try db.execute("""
+                        INSERT INTO channel(id, name, thumbnail, subscribed_at) VALUES (?, ?, ?, ?)
+                        ON CONFLICT(id) DO NOTHING
+                        """, [.text(c.id), .text(c.name), c.thumbnailURL.map { .text($0.absoluteString) } ?? .null,
+                              .real(c.subscribedAt.timeIntervalSince1970)])
+                }
+            }
+            return (try db.query(sql) { $0.int(0) ?? 0 }.first ?? 0) - before
+        }
+    }
+
     public func unsubscribe(channelId: String) throws {
         try db.withLock { db in try db.execute("DELETE FROM channel WHERE id = ?", [.text(channelId)]) }
     }

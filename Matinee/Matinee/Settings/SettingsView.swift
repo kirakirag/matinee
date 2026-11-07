@@ -4,8 +4,11 @@ import UniformTypeIdentifiers
 
 struct SettingsView: View {
     let store: Store?
-    @State private var importing = false
+    @Environment(Subscriptions.self) private var subscriptions: Subscriptions?
+    /// Which Takeout file the open picker is for.
+    @State private var importing: TakeoutFile?
     @State private var importNote: String?
+    @State private var subscriptionsNote: String?
     @AppStorage("braveProfile") private var braveProfile = ""
     @AppStorage("dearrowTitles") private var dearrowTitles = true
     @AppStorage("dearrowThumbnails") private var dearrowThumbnails = true
@@ -27,14 +30,18 @@ struct SettingsView: View {
     @FocusState private var keyboard: Bool
     @FocusState private var editingBrave: Bool
 
+    enum TakeoutFile { case history, subscriptions }
+
     enum Row: Hashable {
-        case quality, opengl, dearrowTitles, dearrowThumbnails, comments, recommendations, localModels, models, takeout
+        case quality, opengl, dearrowTitles, dearrowThumbnails, comments, subscriptions, recommendations, localModels, models
+        case takeout
         case sponsor(String)
         case brave
     }
 
     private var rows: [Row] {
-        [.quality, .opengl, .dearrowTitles, .dearrowThumbnails, .comments, .recommendations, .localModels, .models, .takeout]
+        [.quality, .opengl, .dearrowTitles, .dearrowThumbnails, .comments, .subscriptions, .recommendations, .localModels,
+         .models, .takeout]
             + SponsorBlock.categories.map { .sponsor($0.id) } + [.brave]
     }
 
@@ -44,6 +51,7 @@ struct SettingsView: View {
         case .localModels: recommendations
         case .models: models.map { m in m.bytesOnDisk > 0 || modelsAction(m) != nil } ?? false
         case .takeout: store != nil
+        case .subscriptions: store != nil && subscriptions != nil
         default: true
         }
     }
@@ -94,6 +102,16 @@ struct SettingsView: View {
                 Text("O or the speech-bubble button opens a video's comments. They load in the background once a video starts. Read-only: nothing is ever posted.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            Section("Subscriptions") {
+                HStack {
+                    Button("Import YouTube Subscriptions…") { importing = .subscriptions }
+                        .disabled(store == nil || subscriptions == nil)
+                    if let subscriptionsNote { Text(subscriptionsNote).font(.caption).foregroundStyle(.secondary) }
+                }
+                .row(.subscriptions, selected)
+                Text("From Google Takeout: takeout.google.com → YouTube and YouTube Music → subscriptions; unzip and pick subscriptions.csv. Channels you already follow stay as they are.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("Recommendations") {
                 Toggle("Up next and For You", isOn: $recommendations).row(.recommendations, selected)
                 Text("Up next shows the videos YouTube suggests next to the one playing, from the page Matinee already loads. For You (Y) ranks the suggestions next to your recent history on this Mac: YouTube sees which videos' pages are loaded, never your account or the ranking.")
@@ -105,7 +123,7 @@ struct SettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
                 if let models { ModelsRow(models: models, enabled: localModels && recommendations).row(.models, selected) }
                 HStack {
-                    Button("Import YouTube History…") { importing = true }.disabled(store == nil)
+                    Button("Import YouTube History…") { importing = .history }.disabled(store == nil)
                     if let importNote { Text(importNote).font(.caption).foregroundStyle(.secondary) }
                 }
                 .row(.takeout, selected)
@@ -132,14 +150,42 @@ struct SettingsView: View {
                 .font(.caption).foregroundStyle(.tertiary)
         }
         .formStyle(.grouped)
-        .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { result in
+        .fileImporter(isPresented: Binding(get: { importing != nil }, set: { if !$0 { importing = nil } }),
+                      allowedContentTypes: importing == .subscriptions ? [.commaSeparatedText] : [.json]) { result in
+            let file = importing
             guard let store, case .success(let url) = result else { return }
-            importNote = "Importing…"
-            Task {
-                importNote = await Self.importTakeout(url, into: store)
-                keyboard = true
+            if file == .subscriptions, let subscriptions {
+                subscriptionsNote = "Importing…"
+                Task {
+                    subscriptionsNote = await Self.importSubscriptions(url, into: store)
+                    await subscriptions.reload()
+                    keyboard = true
+                }
+            } else {
+                importNote = "Importing…"
+                Task {
+                    importNote = await Self.importTakeout(url, into: store)
+                    keyboard = true
+                }
             }
         }
+    }
+
+    /// Reads a Takeout subscriptions.csv off the main thread; the note says what happened.
+    private static func importSubscriptions(_ url: URL, into store: Store) async -> String {
+        await Task.detached {
+            let access = url.startAccessingSecurityScopedResource()
+            defer { if access { url.stopAccessingSecurityScopedResource() } }
+            do {
+                let channels = try TakeoutSubscriptions.parse(Data(contentsOf: url))
+                let added = try store.addSubscriptions(channels)
+                return "Imported \(channels.count) channels (\(added) new)."
+            } catch is TakeoutSubscriptions.NotTakeout {
+                return "That isn't a Takeout subscriptions.csv."
+            } catch {
+                return "Couldn't import: \(error.localizedDescription)"
+            }
+        }.value
     }
 
     /// Reads a Takeout watch-history.json off the main thread; the note says what happened.
@@ -206,7 +252,10 @@ struct SettingsView: View {
             editingBrave = true
         case .takeout:
             guard store != nil else { return .ignored }
-            importing = true
+            importing = .history
+        case .subscriptions:
+            guard store != nil, subscriptions != nil else { return .ignored }
+            importing = .subscriptions
         default:
             flip(selected)
         }

@@ -31,6 +31,12 @@ final class Subscriptions {
         isLoaded = true
     }
 
+    /// Re-reads the stored list after an import and refreshes the feed.
+    func reload() async {
+        await load()
+        onChange?()
+    }
+
     func contains(_ id: String?) -> Bool { id.map(ids.contains) ?? false }
 
     /// Subscribes to the channel, or unsubscribes when subscribed. Saving a new one needs its name.

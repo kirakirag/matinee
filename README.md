@@ -146,7 +146,7 @@ YouTube only sees which watch pages Matinee loads. It never sees an account, coo
 
 ## How it works
 
-The app and everything it starts run in the macOS App Sandbox. It can reach the network, read and write `~/Movies` and `~/.config/matinee`, and read a file you pick yourself (the Takeout import). Nothing else outside its container.
+The app and everything it starts run in the macOS App Sandbox. It can reach the network, read and write `~/Movies` and `~/.config/matinee`, and read a file you pick yourself (the Takeout imports). Nothing else outside its container.
 
 - `Matinee/Matinee` holds the SwiftUI app, and `Matinee/MatineeKit` the testable core: the SQLite store, feed, search, the key maps, ranking, SponsorBlock and DeArrow.
 - `Matinee/Worker/matinee_worker.py` is a long-running yt-dlp process that the app talks to over stdin and stdout in JSON lines. It resolves streams, searches, lists channels and playlists, and downloads. It runs on a bundled Python, with a URL allowlist, and nothing derived from network data ever picks a program to run.
@@ -168,7 +168,9 @@ Scripts/install_app.sh            # Release build, signed, installed to /Applica
 
 For development, open `Matinee/Matinee.xcodeproj` and run the Matinee scheme. The tests run in Xcode (MatineeKitTests), and the worker's tests run with `python3 -m unittest test_matinee_worker` from `Matinee/Worker`.
 
-Moving from FreeTube? `matinee-import` copies FreeTube's subscriptions and watch history into Matinee's database. Point it at a copy of FreeTube's data folder, not the live one.
+Moving from YouTube? Export your subscriptions with [Google Takeout](https://takeout.google.com) and choose "Import YouTube Subscriptions…" in Settings, then pick `subscriptions.csv`.
+
+Moving from FreeTube? `matinee-import` copies FreeTube's subscriptions and watch history into Matinee's database. Point it at a copy of FreeTube's data folder, not the live one; AGENTS.md has the commands.
 
 ## Credits
 

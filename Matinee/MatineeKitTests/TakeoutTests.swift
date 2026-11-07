@@ -40,3 +40,41 @@ private let sample = """
     #expect(try s.importedWatches(limit: 10).map(\.videoId) == ["lVynu4bo1rY", "ddddddddddd"], "newest first")
     #expect(try s.history().isEmpty, "History stays as it was")
 }
+
+// Takeout's subscriptions.csv: the header is in the account's language, a title may hold commas and quotes.
+private let subscriptionsCSV = "\u{FEFF}Channel Id,Channel Url,Channel Title\r\n"
+    + "UCBa5G_ESCn8Yd4vw5U-gIcg,http://www.youtube.com/channel/UCBa5G_ESCn8Yd4vw5U-gIcg,Stanford Online\r\n"
+    + "UCabcdefghijklmnopqrstuv,http://www.youtube.com/channel/UCabcdefghijklmnopqrstuv,\"Talks, \"\"live\"\"\"\r\n"
+    + "not-a-channel,http://www.youtube.com/channel/x,Broken\r\n"
+    + "\r\n"
+
+@Test func takeoutSubscriptionsReadsChannels() throws {
+    let channels = try TakeoutSubscriptions.parse(Data(subscriptionsCSV.utf8))
+    #expect(channels.map(\.id) == ["UCBa5G_ESCn8Yd4vw5U-gIcg", "UCabcdefghijklmnopqrstuv"], "header and bad IDs skipped")
+    #expect(channels.map(\.name) == ["Stanford Online", "Talks, \"live\""])
+    #expect(channels.allSatisfy { $0.thumbnailURL == nil })
+}
+
+@Test func takeoutSubscriptionsAcceptsAnEmptyExport() throws {
+    #expect(try TakeoutSubscriptions.parse(Data("Kanal-ID,Kanal-URL,Kanaltitel\n".utf8)).isEmpty)
+}
+
+@Test func takeoutSubscriptionsRejectsOtherFiles() {
+    #expect(throws: TakeoutSubscriptions.NotTakeout.self) { try TakeoutSubscriptions.parse(Data(sample.utf8)) }
+    #expect(throws: TakeoutSubscriptions.NotTakeout.self) { try TakeoutSubscriptions.parse(Data()) }
+    #expect(throws: TakeoutSubscriptions.NotTakeout.self) { try TakeoutSubscriptions.parse(Data([0xFF, 0xFE, 0x00])) }
+}
+
+@Test func importedSubscriptionsKeepExistingChannels() throws {
+    let s = try Store.inMemory()
+    let avatar = URL(string: "https://yt3.ggpht.com/a")!
+    try s.upsert([Channel(id: "UCBa5G_ESCn8Yd4vw5U-gIcg", name: "Stanford", thumbnailURL: avatar, subscribedAt: .distantPast)])
+    let channels = try TakeoutSubscriptions.parse(Data(subscriptionsCSV.utf8))
+    #expect(try s.addSubscriptions(channels) == 1)
+    #expect(try s.addSubscriptions(channels) == 0, "importing the same file again adds nothing")
+    let saved = try s.subscriptions()
+    #expect(saved.count == 2)
+    #expect(saved.first { $0.id == "UCBa5G_ESCn8Yd4vw5U-gIcg" } == Channel(id: "UCBa5G_ESCn8Yd4vw5U-gIcg", name: "Stanford",
+                                                                          thumbnailURL: avatar, subscribedAt: .distantPast),
+            "an existing subscription keeps its name, avatar and date")
+}
