@@ -150,7 +150,8 @@ struct MatineeApp: App {
                 .environment(downloads)
                 .environment(subscriptions)
                 .environment(localModels)
-                .frame(minWidth: 760, minHeight: 500)
+                .frame(minHeight: 500)
+                .background(WindowMinimumWidth(width: 760))
                 .task {
                     await subscriptions?.load()
                     if !KeyBench.isRequested { Task { await worker.warmUp() }; Task { await listWorker.warmUp() } }   // the bench stays offline
@@ -200,5 +201,28 @@ private extension Store {
         }
         return SearchModel(store: self, worker: worker, dearrow: DeArrowService(store: self),
                            suggestions: SuggestionService())
+    }
+}
+
+/// The window's minimum width, as a constraint on its content view. Not `.frame(minWidth:)`: SwiftUI hands that to the
+/// sidebar's detail column, which then can't narrow while the sidebar slides in, and the toolbar overflows (») for a
+/// moment. Not `contentMinSize` either: SwiftUI resets it.
+private struct WindowMinimumWidth: NSViewRepresentable {
+    let width: CGFloat
+
+    func makeNSView(context: Context) -> Host { Host(width: width) }
+    func updateNSView(_ view: Host, context: Context) {}
+
+    final class Host: NSView {
+        let width: CGFloat
+        private var constraint: NSLayoutConstraint?
+        init(width: CGFloat) { self.width = width; super.init(frame: .zero) }
+        required init?(coder: NSCoder) { fatalError() }
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            constraint?.isActive = false
+            constraint = window?.contentView?.widthAnchor.constraint(greaterThanOrEqualToConstant: width)
+            constraint?.isActive = true
+        }
     }
 }

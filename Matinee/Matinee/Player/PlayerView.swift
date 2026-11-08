@@ -9,6 +9,10 @@ struct PlayerView: View {
     let player: PlaybackController
     @State private var controlsVisible = true
     @State private var hideControls: Task<Void, Never>?
+    /// The controls' height with their margin, measured, for Live Text and the skip notice to stay above them.
+    @State private var controlsHeight: CGFloat = 0
+    /// The window's content area, which the mini player and the side panel are sized from.
+    @State private var space: CGSize = .zero
 
     var body: some View {
         ZStack {
@@ -18,7 +22,9 @@ struct PlayerView: View {
             // Not while dismissed (which pauses): that would read back and analyse a frame nobody sees, on the main
             // thread just as the list takes keys, and its selection would keep ⌘C from copying the list's link.
             if player.phase == .playing, player.isPaused, player.isPresented {
-                LiveTextLayer(player: player)
+                // Paused, the controls stay shown; the mini player has none.
+                LiveTextLayer(player: player, covered: player.isMini ? NSEdgeInsets() : NSEdgeInsets(
+                    top: 0, left: 0, bottom: controlsHeight, right: showsPanel ? panelWidth : 0))
             }
             if player.phase != .playing, let item = player.item {
                 if player.isMini {
@@ -37,11 +43,12 @@ struct PlayerView: View {
                 fullOverlays
             }
         }
-        .frame(width: player.isMini ? Self.miniWidth : nil, height: player.isMini ? Self.miniWidth * 9 / 16 : nil)
+        .frame(width: player.isMini ? miniWidth : nil, height: player.isMini ? miniWidth * 9 / 16 : nil)
         .clipShape(.rect(cornerRadius: player.isMini ? 10 : 0))
         .shadow(color: .black.opacity(player.isMini ? 0.35 : 0), radius: 12, y: 4)
         .padding(player.isMini ? 16 : 0)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { space = $0 }
         .ignoresSafeArea(edges: player.isFullscreen ? .all : [])
         .opacity(player.isPresented || player.isMini ? 1 : 0)
         .allowsHitTesting(player.isPresented || player.isMini)
@@ -54,12 +61,20 @@ struct PlayerView: View {
         .animation(player.isPresented || player.isMini ? .easeInOut(duration: 0.25) : nil, value: player.isMini)
     }
 
-    private static let miniWidth: CGFloat = 320
+    /// A quarter of the window wide, at 16:9.
+    private var miniWidth: CGFloat { space.width / 4 }
+    /// A third of the window wide.
+    private var panelWidth: CGFloat { space.width / 3 }
+
+    private var showsPanel: Bool {
+        player.panelVisible && (PlaybackController.commentsEnabled || PlaybackController.upNextEnabled)
+    }
 
     /// The full player's controls, notices, side panel and quality list.
     @ViewBuilder private var fullOverlays: some View {
         if player.phase == .playing {
             PlayerControls(player: player)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { controlsHeight = $0 }
                 .frame(maxHeight: .infinity, alignment: .bottom)
                 .opacity(controlsVisible ? 1 : 0)
                 .allowsHitTesting(controlsVisible)
@@ -71,13 +86,13 @@ struct PlayerView: View {
                 .padding(.horizontal, 14).padding(.vertical, 7)
                 .background(.regularMaterial, in: .capsule)
                 .frame(maxHeight: .infinity, alignment: .bottom)
-                .padding(.bottom, 64)
+                .padding(.bottom, controlsHeight)
                 .transition(.opacity)
                 .allowsHitTesting(false)
         }
-        if player.panelVisible, PlaybackController.commentsEnabled || PlaybackController.upNextEnabled {
+        if showsPanel {
             SidePanel(player: player)
-                .frame(width: 380)
+                .frame(width: panelWidth)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
                 .transition(.move(edge: .trailing))
         }
@@ -366,7 +381,8 @@ private struct UpNextList: View {
                     ForEach(Array(player.upNext.enumerated()), id: \.element.id) { i, e in
                         Button { player.playUpNext(e) } label: {
                             HStack(alignment: .top, spacing: 10) {
-                                Thumbnail(videoId: e.id, channelId: e.channelId).frame(width: 120)
+                                Thumbnail(videoId: e.id, channelId: e.channelId)
+                                    .containerRelativeFrame(.horizontal) { width, _ in width / 3 }   // a third of the panel
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(e.title).font(.callout.weight(.medium)).lineLimit(2).multilineTextAlignment(.leading)
                                     if let channel = e.channel { Text(channel).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
