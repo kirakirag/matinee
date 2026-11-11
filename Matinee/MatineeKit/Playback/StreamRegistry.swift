@@ -10,6 +10,9 @@ public final class StreamRegistry: @unchecked Sendable {
     private var token = ""
     private var resolved: Resolved?
     private var lastFailure: String?
+    /// Every stream opened, kept until the registry goes: mpv can call a stream's cancel callback right after closing
+    /// it, so mpv's own reference can't be the last. A closed stream is cancelled and holds no data.
+    private var opened: [RangedStream] = []
     private let fetch: RangedStream.Fetch
 
     public init() { fetch = RangedStream.urlSession }
@@ -49,7 +52,10 @@ public final class StreamRegistry: @unchecked Sendable {
             }
             // A stream of an earlier load can still fail after the next load registered (mpv closes it later).
             let load = token
-            return url.map { RangedStream(url: $0, headers: resolved.headers, fetch: fetch, onFailure: { [weak self] in self?.failed($0, load: load) }) }
+            guard let url else { return nil }
+            let stream = RangedStream(url: url, headers: resolved.headers, fetch: fetch, onFailure: { [weak self] in self?.failed($0, load: load) })
+            opened.append(stream)
+            return stream
         }
     }
 

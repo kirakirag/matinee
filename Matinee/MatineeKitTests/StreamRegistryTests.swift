@@ -21,6 +21,17 @@ struct StreamRegistryTests {
         #expect(registry.open("matinee-yt://a/" + second.video.split(separator: "/").last!) == nil)
     }
 
+    /// mpv can call a stream's cancel callback after its close callback, so a stream must outlive mpv's reference.
+    @Test func openedStreamLivesAsLongAsTheRegistry() {
+        var registry: StreamRegistry? = StreamRegistry()
+        weak var stream: RangedStream?
+        do { stream = registry!.open(registry!.register(resolved(audio: nil)).video) }
+        _ = registry!.register(resolved(audio: nil))
+        #expect(stream != nil)
+        registry = nil
+        #expect(stream == nil)
+    }
+
     @Test func clearForgetsTheLoadAndItsFailure() {
         let registry = StreamRegistry()
         let first = registry.register(resolved(audio: nil))

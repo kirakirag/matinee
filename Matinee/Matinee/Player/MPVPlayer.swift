@@ -253,6 +253,7 @@ final class MPVPlayer {
         info.pointee.seek_fn = { cookie, offset in MPVPlayer.stream(cookie).seek(to: offset) ? offset : Int64(MPV_ERROR_GENERIC.rawValue) }
         info.pointee.size_fn = { cookie in MPVPlayer.stream(cookie).size() ?? Int64(MPV_ERROR_UNSUPPORTED.rawValue) }
         info.pointee.cancel_fn = { cookie in MPVPlayer.stream(cookie).cancel() }
+        // The registry also holds the stream, which outlives this release: mpv may still call cancel_fn after close_fn.
         info.pointee.close_fn = { cookie in
             MPVPlayer.stream(cookie).cancel()
             Unmanaged<RangedStream>.fromOpaque(cookie!).release()
