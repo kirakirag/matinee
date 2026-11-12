@@ -379,8 +379,7 @@ import os
         commandCount += 1
         switch c {
         case .close: minimize()
-        case .miniPlayer:
-            if isMini { resume() } else { minimize() }
+        case .stop: dismiss()
         case .fullscreen: NSApp.keyWindow?.toggleFullScreen(nil)
         case .exitFullscreen: leaveFullscreen()
         case .next:

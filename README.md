@@ -84,7 +84,6 @@ In the player:
 | ↑ ↓, - = | Volume |
 | , . | Slower or faster |
 | F | Fullscreen |
-| I | Mini player: the video keeps playing in a corner while you browse. Click it or press ⌘P to bring it back. Leaving the player any other way (Escape, C, another section) does the same; the mini player's ✕ stops the video |
 | ⇧N | Next in the playlist, or the first "Up next" video when there's no playlist |
 | ⇧P | Previous in the playlist |
 | O | Comments and Up next panel (↑ ↓ to move, Return to open, Tab to switch tabs, Escape to close) |
@@ -97,6 +96,9 @@ In the player:
 | U | Undo the last SponsorBlock skip |
 | Return | Open in Brave, when a video needs a signed-in account |
 | Escape | Leave fullscreen, then shrink to the mini player |
+| ⌘Escape | Stop the video, also from the mini player |
+
+Leaving the player (Escape, C, another section) keeps the video playing in a corner while you browse. Click the mini player or press ⌘P to bring it back; its ✕ or ⌘Escape stops the video.
 
 ## Settings file
 

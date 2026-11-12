@@ -22,7 +22,8 @@ public enum KeyRouting {
     /// While the player is up, a focused text field is ignored and ⌘⌫ does nothing.
     public static func route(chord: KeyChord, keyCode: UInt16, special: SpecialKey?, playerPresented: Bool,
                              textFieldFocused: Bool, hasRoute: Bool, playerNeedsAccount: Bool,
-                             qualityMenuOpen: Bool, fullscreen: Bool, panelOpen: Bool = false) -> KeyRoute {
+                             qualityMenuOpen: Bool, fullscreen: Bool, panelOpen: Bool = false,
+                             playerMini: Bool = false) -> KeyRoute {
         // The player covers every text field, so one still focused underneath must not take its keys.
         let textFieldFocused = textFieldFocused && !playerPresented
         // ⌘⌫ reports its character inconsistently, so go by the key code.
@@ -32,6 +33,10 @@ public enum KeyRouting {
             // ⌘⌫ would act on the list hidden under the player.
             if cmd == .delete, playerPresented { return .swallow }
             return KeyMap.shouldHandle(cmd, textFieldFocused: textFieldFocused) ? .global(cmd) : .pass
+        }
+        // ⌘Escape stops the video, whether it fills the window or plays in the mini player.
+        if special == .escape, chord.command, !chord.shift, !chord.option, !chord.control, playerPresented || playerMini {
+            return .player(.stop)
         }
         let plain = !chord.command && !chord.shift && !chord.option && !chord.control
         if special == .escape, plain, !textFieldFocused, !playerPresented {

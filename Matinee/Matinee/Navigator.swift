@@ -129,7 +129,8 @@ final class Navigator {
                                         playerNeedsAccount: self.player?.phase == .failed(.needsAccount),
                                         qualityMenuOpen: self.player?.menuIndex != nil,
                                         fullscreen: self.player?.isFullscreen ?? false,
-                                        panelOpen: self.player?.panelOpen ?? false) {
+                                        panelOpen: self.player?.panelOpen ?? false,
+                                        playerMini: self.player?.isMini ?? false) {
                 case .global(let cmd): self.perform(cmd)
                 case .player(let cmd): self.player?.handle(cmd)
                 case .qualityMenu(let key): self.player?.menuKey(key)

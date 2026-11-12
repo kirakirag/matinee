@@ -13,6 +13,19 @@ private func route(_ key: String, code: UInt16 = 0, command: Bool = false, shift
     #expect(route("\u{1b}", code: 53, special: .escape, player: true, hasRoute: true) == .player(.close))
 }
 
+@Test func cmdEscapeStopsTheVideoFullOrMini() {
+    let stop = KeyChord(key: "\u{1b}", command: true)
+    func r(player: Bool, mini: Bool, fullscreen: Bool = false) -> KeyRoute {
+        KeyRouting.route(chord: stop, keyCode: 53, special: .escape, playerPresented: player, textFieldFocused: false,
+                         hasRoute: true, playerNeedsAccount: false, qualityMenuOpen: false, fullscreen: fullscreen,
+                         playerMini: mini)
+    }
+    #expect(r(player: true, mini: false) == .player(.stop))
+    #expect(r(player: true, mini: false, fullscreen: true) == .player(.stop))
+    #expect(r(player: false, mini: true) == .player(.stop))
+    #expect(r(player: false, mini: false) == .pass)
+}
+
 @Test func escapeInFullscreenLeavesFullscreen() {
     #expect(route("\u{1b}", code: 53, special: .escape, player: true, fullscreen: true) == .player(.exitFullscreen))
     #expect(route("\u{1b}", code: 53, special: .escape, player: true, qualityMenu: true, fullscreen: true) == .qualityMenu(.close))
