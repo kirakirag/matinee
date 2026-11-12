@@ -29,10 +29,15 @@ import os
     /// The current video's segments to skip; nil until SponsorBlock answers (it never holds up playback).
     @ObservationIgnored private var skipper: SponsorSkipper?
     @ObservationIgnored private var segmentsTask: Task<Void, Never>?
-    @ObservationIgnored private var skipNoticeTask: Task<Void, Never>?
+    @ObservationIgnored private var noticeTask: Task<Void, Never>?
     @ObservationIgnored private let player: MPVPlayer
     @ObservationIgnored private var session = PlaybackSession()
     @ObservationIgnored private var openTask: Task<Void, Never>?
+    /// How long a closed player keeps its video loaded. mpv's cache can hold over a GiB, so it goes after this.
+    private static let unloadDelay = Duration.seconds(5 * 60)
+    @ObservationIgnored private var unloadTask: Task<Void, Never>?
+    /// The closed player's video was unloaded; `resume` loads it again where it was.
+    @ObservationIgnored private var unloaded = false
     /// False from `open` until the stream is handed to mpv.
     @ObservationIgnored private var loaded = false
     /// True once mpv has loaded the current open's file; time reports before that belong to the previous file.
@@ -82,8 +87,8 @@ import os
     /// Shrunk to a corner of the window (I), still playing while you browse.
     private(set) var isMini = false
     private(set) var braveError: String?
-    /// "Skipped Sponsor · U to undo", shown briefly after a SponsorBlock skip.
-    private(set) var skipNotice: String?
+    /// Shown briefly over the controls: "Skipped Sponsor · U to undo", or why subtitles failed.
+    private(set) var notice: String?
     enum CommentsStatus: Equatable { case idle, loading, loaded, failed(String) }
     /// The side panel (O) is open: Up next and/or comments, whichever are switched on. Both also load once a
     /// video's first frame is shown.
@@ -144,8 +149,35 @@ import os
     private(set) var savedHeight: Int?
     /// The user picked a stream quality for a downloaded video; reloads stream instead of playing the file.
     @ObservationIgnored private var streamSaved = false
-    /// Selected row of the quality list opened with `q`, nil while it is closed.
-    private(set) var qualityMenuIndex: Int?
+    /// The lists opened with `q`, `v` and `a`, driven by ↑/↓/Return/Escape.
+    enum Menu: Equatable { case quality, subtitles, audio }
+    private(set) var menu = Menu.quality
+    /// Selected row of the open `menu`, nil while it is closed.
+    private(set) var menuIndex: Int?
+    /// The current video's caption tracks (uploaded, then the auto-generated one in its spoken language).
+    private(set) var subtitleTracks: [SubtitleTrack] = []
+    /// The track shown, nil for none; set while its file is still being fetched.
+    private(set) var subtitle: SubtitleTrack?
+    private(set) var subtitleLoading = false
+    @ObservationIgnored private var subtitleFile: URL?
+    @ObservationIgnored private var subtitleTask: Task<Void, Never>?
+    @ObservationIgnored private let subtitleStore: SubtitleStore
+    /// The tracks saved with the current video's download: listed before (and without) a resolve.
+    @ObservationIgnored private var savedSubtitles: [SubtitleTrack] = []
+    /// The current video's audio languages when it has several (dubs); empty for a saved download.
+    private(set) var audioTracks: [AudioTrack] = []
+    private(set) var audioTrack: AudioTrack?
+    /// The remembered subtitle language was applied to the current video (a reload keeps what's shown).
+    @ObservationIgnored private var tracksChosen = false
+    /// Remembered across videos: the last subtitle language picked ("" is off) and audio language ("" is the original).
+    private static var subtitleLanguage: String {
+        get { UserDefaults.standard.string(forKey: "subtitleLanguage") ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "subtitleLanguage") }
+    }
+    private static var audioLanguage: String {
+        get { UserDefaults.standard.string(forKey: "audioLanguage") ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "audioLanguage") }
+    }
     private(set) var speed = 1.0
     /// The window is in macOS fullscreen, as its notifications report (so the green button and ⌃⌘F count too).
     private(set) var isFullscreen = false
@@ -155,17 +187,20 @@ import os
     /// mpv's render view. It lives as long as the player, so it stays in the window rather than being re-created.
     var videoView: NSView { player.view }
 
-    init(store: Store, resolver: PlaybackResolver, player: MPVPlayer, sponsorBlock: SponsorBlockService? = nil) {
+    init(store: Store, resolver: PlaybackResolver, player: MPVPlayer, sponsorBlock: SponsorBlockService? = nil,
+         subtitleStore: SubtitleStore = SubtitleStore(directory: URL.cachesDirectory.appending(path: "Subtitles"),
+                                                      saved: DownloadFiles.directory)) {
         self.store = store
         self.resolver = resolver
         self.sponsorBlock = sponsorBlock
         self.player = player
+        self.subtitleStore = subtitleStore
         player.onTime = { [weak self] position, duration in self?.timeChanged(position, duration) }
         player.onPause = { [weak self] in self?.isPaused = $0 }
         player.onVolume = { [weak self] in self?.volume = $0 }
         player.onSpeed = { [weak self] in self?.speed = $0 }
         player.onBuffering = { [weak self] in self?.buffering($0) }
-        player.onFileLoaded = { [weak self] in if self?.phase == .loading { self?.fileLoaded = true } }
+        player.onFileLoaded = { [weak self] in self?.loadedFile() }
         player.onFirstFrame = { [weak self] in self?.firstFrame() }
         player.onEndOfFile = { [weak self] in self?.endOfFile() }
         player.onLoadError = { [weak self] in self?.loadFailed($0) }
@@ -248,13 +283,24 @@ import os
     private func start(_ item: Item) {
         saveHistory()
         openTask?.cancel()
+        unloadTask?.cancel()
+        unloaded = false
         let token = session.begin()
         self.item = item
         retriedRefused = false
         maxHeight = Self.defaultMaxHeight
         qualities = []
         currentHeight = nil
-        qualityMenuIndex = nil
+        menuIndex = nil
+        subtitleTask?.cancel()
+        subtitleTracks = []
+        subtitle = nil
+        subtitleLoading = false
+        subtitleFile = nil
+        savedSubtitles = []
+        audioTracks = []
+        audioTrack = nil
+        tracksChosen = false
         hasSavedCopy = false
         playingSaved = false
         savedHeight = nil
@@ -279,33 +325,62 @@ import os
         if panelVisible { loadPanel() }
     }
 
+    /// Leaving the player (Escape, another section, a channel) keeps the video playing in the corner. A video that
+    /// failed has nothing to keep playing, so it closes.
+    func minimize() {
+        guard isPresented else { return }
+        if case .failed = phase { return dismiss() }
+        leaveFullscreen()
+        menuIndex = nil
+        isPresented = false
+        isMini = true
+    }
+
+    /// Stops: pauses, saves the position, and frees the video a while later (the mini player's ✕, closing the window).
     func dismiss() {
         leaveFullscreen()
-        qualityMenuIndex = nil
+        menuIndex = nil
         saveHistory()
         player.pause()
         isPresented = false
         isMini = false
+        unloadTask?.cancel()
+        unloadTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.unloadDelay)
+            guard !Task.isCancelled else { return }
+            self?.unload()
+        }
+    }
+
+    /// Frees the closed player's video and mpv's cache, keeping the item and position for `resume`.
+    private func unload() {
+        guard item != nil, !isPresented, !isMini, !unloaded else { return }
+        saveHistory()
+        openTask?.cancel()
+        _ = session.begin()
+        fileLoaded = false   // `position` stays where it was; `started` keeps it the place `reload` resumes at
+        player.stop()
+        unloaded = true
     }
 
     func resume() {
         guard item != nil else { return }
+        unloadTask?.cancel()
         isMini = false
         isPresented = true
+        if unloaded {
+            unloaded = false
+            reload()
+        }
         player.play()
     }
 
     func handle(_ c: PlayerCommand) {
         commandCount += 1
         switch c {
-        case .close: dismiss()
+        case .close: minimize()
         case .miniPlayer:
-            if isMini { resume(); return }
-            guard isPresented else { return }
-            leaveFullscreen()
-            qualityMenuIndex = nil
-            isPresented = false
-            isMini = true
+            if isMini { resume() } else { minimize() }
         case .fullscreen: NSApp.keyWindow?.toggleFullScreen(nil)
         case .exitFullscreen: leaveFullscreen()
         case .next:
@@ -314,7 +389,11 @@ import os
         case .openChannel:
             if let item, let id = item.channelId, ChannelID.isValid(id) { onOpenChannel?(.id(id), item.channelName) }
         case .quality:
-            if !qualityChoices.isEmpty { qualityMenuIndex = qualityChoices.firstIndex(of: selectedQuality) ?? 0 }
+            if !qualityChoices.isEmpty { open(.quality, at: qualityChoices.firstIndex(of: selectedQuality) ?? 0) }
+        case .subtitles:
+            if !subtitleTracks.isEmpty { open(.subtitles, at: subtitle.flatMap { subtitleTracks.firstIndex(of: $0) }.map { $0 + 1 } ?? 0) }
+        case .audio:
+            if audioTracks.count > 1 { open(.audio, at: audioTrack.flatMap { audioTracks.firstIndex(of: $0) } ?? 0) }
         case .toggleComments:
             let comments = Self.commentsEnabled && loadComments != nil, upNext = Self.upNextEnabled && loadRelated != nil
             guard comments || upNext else { return }
@@ -328,8 +407,8 @@ import os
         case .undoSkip:
             if let start = skipper?.undo() {
                 seek(to: start)
-                skipNoticeTask?.cancel()
-                skipNotice = nil
+                noticeTask?.cancel()
+                notice = nil
             }
         default: player.perform(c)
         }
@@ -346,17 +425,108 @@ import os
     /// What's playing: the download, or the stream at the chosen cap.
     var selectedQuality: QualityChoice { playingSaved ? .saved : maxHeight.map(QualityChoice.height) ?? .best }
 
-    func qualityMenu(_ key: QualityMenuKey) {
-        commandCount += 1
-        guard let i = qualityMenuIndex else { return }
-        switch key {
-        case .up: qualityMenuIndex = max(i - 1, 0)
-        case .down: qualityMenuIndex = min(i + 1, qualityChoices.count - 1)
-        case .close: qualityMenuIndex = nil
-        case .apply:
-            qualityMenuIndex = nil
-            setQuality(qualityChoices[i])
+    private func open(_ menu: Menu, at index: Int) {
+        self.menu = menu
+        menuIndex = index
+    }
+
+    /// Rows of the open menu: subtitles list "Off" first.
+    private var menuCount: Int {
+        switch menu {
+        case .quality: qualityChoices.count
+        case .subtitles: subtitleTracks.count + 1
+        case .audio: audioTracks.count
         }
+    }
+
+    func menuKey(_ key: QualityMenuKey) {
+        commandCount += 1
+        guard let i = menuIndex else { return }
+        switch key {
+        case .up: menuIndex = max(i - 1, 0)
+        case .down: menuIndex = min(i + 1, menuCount - 1)
+        case .close: menuIndex = nil
+        case .apply:
+            menuIndex = nil
+            guard i < menuCount else { return }   // the lists can change under an open menu
+            switch menu {
+            case .quality: setQuality(qualityChoices[i])
+            case .subtitles: setSubtitle(i == 0 ? nil : subtitleTracks[i - 1])
+            case .audio: setAudio(audioTracks[i])
+            }
+        }
+    }
+
+    /// Shows a caption track (nil: none) and remembers its language for the next videos.
+    func setSubtitle(_ track: SubtitleTrack?) {
+        Self.subtitleLanguage = track?.lang ?? ""
+        tracksChosen = true
+        show(track)
+    }
+
+    /// Plays another audio language from where it is, and remembers it (the original is remembered as no preference,
+    /// so a video in another language plays its own).
+    func setAudio(_ track: AudioTrack) {
+        guard track != audioTrack, audioTracks.contains(track) else { return }
+        Self.audioLanguage = track.original ? "" : track.lang
+        audioTrack = track
+        reload()
+    }
+
+    /// Takes a resolve's tracks: the audio language picked stays (by language, as a reload at another quality has
+    /// other URLs), and the remembered subtitle language is shown once per video.
+    private func adoptTracks(from r: Resolved) {
+        audioTracks = playingSaved ? [] : r.audioTracks
+        let lang = audioTrack?.lang
+        audioTrack = audioTracks.first { $0.lang == lang } ?? TrackChoice.audio(audioTracks, preferred: Self.audioLanguage)
+        adoptSubtitles(TrackChoice.merged(r.subtitles, saved: savedSubtitles))
+    }
+
+    /// Lists caption tracks; the one shown stays (by language), and the remembered language is shown once per video.
+    private func adoptSubtitles(_ tracks: [SubtitleTrack]) {
+        subtitleTracks = tracks
+        if let shown = subtitle, let same = subtitleTracks.first(where: { $0.lang == shown.lang && $0.auto == shown.auto }) {
+            subtitle = same
+        }
+        guard !tracksChosen, let track = TrackChoice.subtitles(subtitleTracks, preferred: Self.subtitleLanguage) else { return }
+        tracksChosen = true
+        show(track)
+    }
+
+    /// Fetches the track's file (or takes it from disk) and hands it to mpv once the video's file is loaded.
+    private func show(_ track: SubtitleTrack?) {
+        guard let videoId = item?.videoId else { return }
+        subtitleTask?.cancel()
+        subtitle = track
+        subtitleFile = nil
+        subtitleLoading = track != nil
+        guard let track else {
+            player.hideSubtitles()
+            return
+        }
+        let store = subtitleStore
+        subtitleTask = Task {
+            do {
+                let file = try await store.file(videoId: videoId, track: track)
+                guard !Task.isCancelled, item?.videoId == videoId, subtitle == track else { return }
+                subtitleFile = file
+                subtitleLoading = false
+                if fileLoaded { player.showSubtitles(file) }
+            } catch {
+                guard !Task.isCancelled, item?.videoId == videoId, subtitle == track else { return }
+                subtitle = nil
+                subtitleLoading = false
+                showNotice(error.localizedDescription)
+            }
+        }
+    }
+
+    /// mpv has opened the current load's file: a load from before the current open is ignored, and subtitles added
+    /// to the previous file are gone with it.
+    private func loadedFile() {
+        guard phase == .loading else { return }
+        fileLoaded = true
+        if let subtitleFile { player.showSubtitles(subtitleFile) }
     }
 
     /// Switches to the download, or re-resolves the stream at the chosen cap, and reloads where it is, keeping the
@@ -435,6 +605,10 @@ import os
     private func run(_ item: Item, _ token: Int, start: Double? = nil) async {
         let file = localFile(for: item)
         hasSavedCopy = file != nil
+        if file != nil, savedSubtitles.isEmpty {
+            savedSubtitles = SubtitleStore.saved(videoId: item.videoId, in: DownloadFiles.directory)
+            adoptSubtitles(savedSubtitles)
+        }
         if let file, !streamSaved {
             // A saved download plays without resolving, so it works offline; SponsorBlock falls back to stored segments.
             let at = start ?? item.startAt ?? resumePosition(for: item)
@@ -463,7 +637,9 @@ import os
                 try await Task.sleep(for: .seconds(min(1, remaining + 0.3)))
                 guard session.isCurrent(token) else { return }
             }
-            guard MPVLoadPlan.isAcceptable(resolved) else {
+            adoptTracks(from: resolved)
+            let streams = resolved.playing(audioTrack)
+            guard MPVLoadPlan.isAcceptable(streams) else {
                 phase = .failed(.other("Unexpected stream address."))
                 return
             }
@@ -473,7 +649,7 @@ import os
             currentHeight = resolved.height > 0 ? resolved.height : nil
             phase = .loading
             loaded = true
-            player.load(resolved, start: start)
+            player.load(streams, start: start)
         } catch is CancellationError {
         } catch {
             guard session.isCurrent(token) else { return }
@@ -491,13 +667,15 @@ import os
         }
     }
 
-    /// Resolves a downloaded video in the background so its quality list can offer the streams too. Offline, the
-    /// list keeps just the file and Best.
+    /// Resolves a downloaded video in the background so its quality list can offer the streams too, and its
+    /// tracks the download didn't save can be shown. Offline, the list keeps just the file and Best, and the subtitles
+    /// are the saved ones.
     private func lookUpStreamQualities(_ videoId: String, _ token: Int) {
         let resolver = resolver, cap = maxHeight
         Task {
             guard let r = try? await resolver.resolve(videoId, maxHeight: cap), session.isCurrent(token) else { return }
             qualities = r.qualities
+            adoptTracks(from: r)
         }
     }
 
@@ -714,8 +892,8 @@ import os
     private func loadSegments(for videoId: String) {
         segmentsTask?.cancel()
         skipper = nil
-        skipNoticeTask?.cancel()
-        skipNotice = nil
+        noticeTask?.cancel()
+        notice = nil
         guard let sponsorBlock else { return }
         segmentsTask = Task {
             let segments = await sponsorBlock.segments(for: videoId)
@@ -727,11 +905,15 @@ import os
     private func skip(_ segment: SponsorSegment) {
         seek(to: segment.end)
         let name = SponsorBlock.categories.first { $0.id == segment.category }?.title ?? segment.category
-        skipNotice = "Skipped \(name) · U to undo"
-        skipNoticeTask?.cancel()
-        skipNoticeTask = Task {
+        showNotice("Skipped \(name) · U to undo")
+    }
+
+    private func showNotice(_ text: String) {
+        notice = text
+        noticeTask?.cancel()
+        noticeTask = Task {
             try? await Task.sleep(for: .seconds(3))
-            if !Task.isCancelled { skipNotice = nil }
+            if !Task.isCancelled { notice = nil }
         }
     }
 

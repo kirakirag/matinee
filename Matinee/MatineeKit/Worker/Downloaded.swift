@@ -48,4 +48,19 @@ public struct Downloaded: Decodable, Sendable {
     public let channel: String?
     public let channelId: String?
     public let duration: Double?
+    /// The caption tracks, to save next to the file.
+    public let subtitles: [SubtitleTrack]
+
+    enum CodingKeys: String, CodingKey { case file, bytes, title, channel, channelId, duration, subtitles }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        file = try c.decode(String.self, forKey: .file)
+        bytes = try c.decode(Int.self, forKey: .bytes)
+        title = try c.decodeIfPresent(String.self, forKey: .title)
+        channel = try c.decodeIfPresent(String.self, forKey: .channel)
+        channelId = try c.decodeIfPresent(String.self, forKey: .channelId)
+        duration = try c.decodeIfPresent(Double.self, forKey: .duration)
+        subtitles = ((try? c.decodeIfPresent([Lenient<SubtitleTrack>].self, forKey: .subtitles)) ?? nil)?.compactMap(\.value) ?? []
+    }
 }

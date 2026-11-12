@@ -22,10 +22,14 @@ public struct Resolved: Sendable, Codable, Equatable {
     public var channelId: String?
     /// Length in seconds.
     public var duration: Double?
+    /// Caption tracks: uploaded ones, then the auto-generated one. Empty for results stored by an older version.
+    public var subtitles: [SubtitleTrack]
+    /// The audio languages, the default first; empty unless the video has several.
+    public var audioTracks: [AudioTrack]
 
     private enum CodingKeys: String, CodingKey {
         case videoURL = "video_url", audioURL = "audio_url", height, vcodec, expire, headers, availableAt = "available_at", qualities, jsc,
-             title, channel, channelId = "channel_id", duration
+             title, channel, channelId = "channel_id", duration, subtitles, audioTracks = "audio_tracks"
     }
 
     public init(from decoder: any Decoder) throws {
@@ -44,6 +48,9 @@ public struct Resolved: Sendable, Codable, Equatable {
         channel = (try? c.decodeIfPresent(String.self, forKey: .channel)) ?? nil
         channelId = (try? c.decodeIfPresent(String.self, forKey: .channelId)) ?? nil
         duration = (try? c.decodeIfPresent(Double.self, forKey: .duration)) ?? nil
+        // Element by element: one malformed track doesn't cost the rest, or the video.
+        subtitles = ((try? c.decodeIfPresent([Lenient<SubtitleTrack>].self, forKey: .subtitles)) ?? nil)?.compactMap(\.value) ?? []
+        audioTracks = ((try? c.decodeIfPresent([Lenient<AudioTrack>].self, forKey: .audioTracks)) ?? nil)?.compactMap(\.value) ?? []
     }
 
     /// The worker's shape, so a stored result decodes like a fresh one.
@@ -62,7 +69,15 @@ public struct Resolved: Sendable, Codable, Equatable {
         try c.encodeIfPresent(channel, forKey: .channel)
         try c.encodeIfPresent(channelId, forKey: .channelId)
         try c.encodeIfPresent(duration, forKey: .duration)
+        try c.encode(subtitles, forKey: .subtitles)
+        try c.encode(audioTracks, forKey: .audioTracks)
     }
+}
+
+/// Decodes to nil instead of failing the array it is in.
+struct Lenient<T: Decodable>: Decodable {
+    let value: T?
+    init(from decoder: any Decoder) throws { value = try? T(from: decoder) }
 }
 
 public enum WorkerError: Error, Equatable {

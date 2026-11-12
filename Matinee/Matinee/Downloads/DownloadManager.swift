@@ -29,6 +29,8 @@ import Observation
     @ObservationIgnored private let sponsorBlock: SponsorBlockService?
     @ObservationIgnored private let directory: URL
     @ObservationIgnored private var running: [String: Task<Void, Never>] = [:]
+    /// Finished downloads whose subtitles are still being saved.
+    @ObservationIgnored private var savingSubtitles: [String: Task<Void, Never>] = [:]
 
     init(store: Store, worker: WorkerClient, sponsorBlock: SponsorBlockService?, directory: URL = DownloadFiles.directory) {
         self.store = store
@@ -65,6 +67,7 @@ import Observation
     /// Stops a running download (the worker removes its partial files) and deletes the row and every file.
     func delete(_ videoId: String) {
         running.removeValue(forKey: videoId)?.cancel()
+        savingSubtitles.removeValue(forKey: videoId)?.cancel()
         items.removeAll { $0.videoId == videoId }
         progress[videoId] = nil
         try? store.removeDownload(videoId: videoId)
@@ -102,11 +105,27 @@ import Observation
                     d.channelId = d.channelId ?? result.channelId
                     d.lengthSeconds = d.lengthSeconds ?? result.duration.map { Int($0) }
                 }
+                saveSubtitles(videoId, result.subtitles)
             } catch is CancellationError {
                 // Deleted while downloading: `delete` already cleaned up.
             } catch {
                 finish(videoId) { $0.state = .failed(Self.message(for: error)) }
             }
+        }
+    }
+
+    /// Keeps the video's caption tracks next to its file, so they show offline. Runs after the download is done
+    /// (about a second per track), outside the two download slots.
+    private func saveSubtitles(_ videoId: String, _ tracks: [SubtitleTrack]) {
+        guard !tracks.isEmpty, items.contains(where: { $0.videoId == videoId && $0.state == .done }) else { return }
+        let directory = directory
+        savingSubtitles[videoId] = Task {
+            await SubtitleStore(directory: directory).save(videoId: videoId, tracks: tracks, in: directory)
+            // Deleted while saving: a file written after `delete` cleaned up goes too.
+            if !items.contains(where: { $0.videoId == videoId }) {
+                try? DownloadFiles.removeAll(videoId: videoId, in: directory)
+            }
+            savingSubtitles[videoId] = nil
         }
     }
 

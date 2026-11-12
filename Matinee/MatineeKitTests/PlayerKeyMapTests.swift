@@ -46,6 +46,8 @@ struct PlayerKeyMapTests {
     @Test func qOpensQuality() {
         #expect(cmd("q") == .quality)
         #expect(cmd("q", shift: true) == nil)
+        #expect(cmd("v") == .subtitles)
+        #expect(cmd("a") == .audio)
     }
 
     @Test func cmdSpaceIsNotPlayer() {

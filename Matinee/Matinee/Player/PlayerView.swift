@@ -56,7 +56,7 @@ struct PlayerView: View {
         .onChange(of: player.commandCount) { showControls() }
         .onChange(of: player.isPaused) { showControls() }
         .onChange(of: player.phase) { showControls() }
-        .animation(.easeInOut(duration: 0.2), value: player.skipNotice)
+        .animation(.easeInOut(duration: 0.2), value: player.notice)
         // Only between two visible states: closing the mini player hides it at once rather than growing a black box.
         .animation(player.isPresented || player.isMini ? .easeInOut(duration: 0.25) : nil, value: player.isMini)
     }
@@ -79,7 +79,7 @@ struct PlayerView: View {
                 .opacity(controlsVisible ? 1 : 0)
                 .allowsHitTesting(controlsVisible)
         }
-        if let notice = player.skipNotice {
+        if let notice = player.notice {
             // Above the controls, and shown while they are hidden too.
             Text(notice)
                 .font(.callout.weight(.medium))
@@ -96,8 +96,24 @@ struct PlayerView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
                 .transition(.move(edge: .trailing))
         }
-        if let selected = player.qualityMenuIndex {
-            QualityList(choices: player.qualityChoices, savedHeight: player.savedHeight, selected: selected)
+        if let selected = player.menuIndex {
+            MenuList(title: menuTitle, rows: menuRows, selected: selected)
+        }
+    }
+
+    private var menuTitle: String {
+        switch player.menu {
+        case .quality: "Quality"
+        case .subtitles: "Subtitles"
+        case .audio: "Audio"
+        }
+    }
+
+    private var menuRows: [String] {
+        switch player.menu {
+        case .quality: player.qualityChoices.map { qualityName($0, savedHeight: player.savedHeight) }
+        case .subtitles: ["Off"] + player.subtitleTracks.map(\.title)
+        case .audio: player.audioTracks.map(\.name)
         }
     }
 
@@ -151,16 +167,18 @@ private func qualityName(_ choice: QualityChoice, savedHeight: Int?) -> String {
     }
 }
 
-/// The list `q` opens: ↑/↓ move, Return applies, Escape closes (keys come through the Navigator's monitor).
-private struct QualityList: View {
-    let choices: [QualityChoice]
-    let savedHeight: Int?
+/// The list `q`, `v` or `a` opens: ↑/↓ move, Return applies, Escape closes (keys come through the Navigator's monitor).
+private struct MenuList: View {
+    let title: String
+    let rows: [String]
     let selected: Int
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            ForEach(Array(choices.enumerated()), id: \.offset) { i, choice in
-                Text(qualityName(choice, savedHeight: savedHeight)).monospacedDigit()
+            Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                .padding(.horizontal, 10).padding(.vertical, 2)
+            ForEach(Array(rows.enumerated()), id: \.offset) { i, row in
+                Text(row).monospacedDigit().lineLimit(1)
                     .frame(minWidth: 90, alignment: .leading)
                     .padding(.horizontal, 10).padding(.vertical, 4)
                     .background(i == selected ? Color.accentColor : .clear, in: .rect(cornerRadius: 6))
@@ -297,6 +315,36 @@ private struct PlayerControls: View {
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
+            }
+            if !player.subtitleTracks.isEmpty {
+                Menu {
+                    Picker("Subtitles", selection: Binding(get: { player.subtitle }, set: { player.setSubtitle($0) })) {
+                        Text("Off").tag(SubtitleTrack?.none)
+                        ForEach(player.subtitleTracks, id: \.self) { Text($0.title).tag(Optional($0)) }
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                } label: {
+                    Image(systemName: player.subtitle == nil ? "captions.bubble" : "captions.bubble.fill")
+                        .symbolEffect(.pulse, isActive: player.subtitleLoading)
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("Subtitles (V)")
+            }
+            if player.audioTracks.count > 1 {
+                Menu {
+                    Picker("Audio", selection: Binding(get: { player.audioTrack }, set: { $0.map(player.setAudio) })) {
+                        ForEach(player.audioTracks, id: \.self) { Text($0.name).tag(Optional($0)) }
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                } label: {
+                    Image(systemName: "waveform")
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("Audio language (A)")
             }
             if PlaybackController.commentsEnabled || PlaybackController.upNextEnabled {
                 let upNext = PlaybackController.upNextEnabled

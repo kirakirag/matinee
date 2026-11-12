@@ -28,14 +28,14 @@ final class Navigator {
         switch cmd {
         case .section(let s):
             guard s != .forYou || ForYouModel.isEnabled else { return }   // hidden while Recommendations is off
-            dismissPlayer()
+            minimizePlayer()
             section = s
         case .focusSearch:
-            dismissPlayer()
+            minimizePlayer()
             section = .search
             searchFocusRequest += 1
         case .filterList:
-            dismissPlayer()
+            minimizePlayer()
             filterRequest += 1
         case .refresh: refreshRequest += 1
         case .toggleSidebar: NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
@@ -52,7 +52,7 @@ final class Navigator {
     }
 
     func push(_ r: Route) {
-        dismissPlayer()
+        minimizePlayer()
         paths[section, default: []].append(r)
     }
 
@@ -96,8 +96,8 @@ final class Navigator {
         return true
     }
 
-    private func dismissPlayer() {
-        if let player, player.isPresented { player.dismiss() }
+    private func minimizePlayer() {
+        player?.minimize()
     }
 
     private nonisolated static let specialKeys: [UInt16: SpecialKey] = [123: .left, 124: .right, 125: .down, 126: .up, 53: .escape, 49: .space]
@@ -127,12 +127,12 @@ final class Navigator {
                                         textFieldFocused: window?.firstResponder is NSText,
                                         hasRoute: !(self.paths[self.section]?.isEmpty ?? true),
                                         playerNeedsAccount: self.player?.phase == .failed(.needsAccount),
-                                        qualityMenuOpen: self.player?.qualityMenuIndex != nil,
+                                        qualityMenuOpen: self.player?.menuIndex != nil,
                                         fullscreen: self.player?.isFullscreen ?? false,
                                         panelOpen: self.player?.panelOpen ?? false) {
                 case .global(let cmd): self.perform(cmd)
                 case .player(let cmd): self.player?.handle(cmd)
-                case .qualityMenu(let key): self.player?.qualityMenu(key)
+                case .qualityMenu(let key): self.player?.menuKey(key)
                 case .panel(let key): self.player?.panelKey(key)
                 case .openBrave: self.player?.openInBrave()
                 case .pop: self.pop()

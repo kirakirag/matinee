@@ -338,6 +338,46 @@ class WorkerTests(unittest.TestCase):
         out = worker.resolve({'id': 'a' * 11})
         self.assertEqual((out['title'], out['channel'], out['channel_id'], out['duration']), (None, None, None, None))
 
+    def test_resolve_lists_subtitles(self):
+        def formats(lang, name):
+            return [{'ext': 'vtt', 'url': f'https://s/{lang}.vtt', 'name': name},
+                    {'ext': 'json3', 'url': f'https://s/{lang}.json3', 'name': name}]
+        fmt = {'url': 'https://v/1', 'vcodec': 'vp9', 'height': 1080}
+        auto = {'en-orig': formats('en-orig', 'English (Original)'), 'en': formats('en', 'English'),
+                'de': formats('de', 'German'), 'fr': formats('fr', 'French'), 'it': formats('it', 'Italian')}
+        StubYDL.script = [{'requested_formats': [fmt], 'automatic_captions': auto,
+                           'subtitles': {'de': formats('de', 'German'), 'live_chat': [{'ext': 'json', 'url': 'https://c'}],
+                                         'xx': [{'ext': 'json3', 'url': 'http://insecure'}]}}]
+        self.assertEqual(worker.resolve({'id': 'a' * 11})['subtitles'], [
+            {'lang': 'de', 'name': 'German', 'url': 'https://s/de.json3', 'auto': False},
+            {'lang': 'en', 'name': 'English', 'url': 'https://s/en-orig.json3', 'auto': True}])
+        # A client without the translation list reports only the generated track, with no "-orig" twin.
+        StubYDL.script = [{'requested_formats': [fmt], 'automatic_captions': {'yue': formats('yue', 'Cantonese')}}]
+        self.assertEqual(worker.resolve({'id': 'a' * 11})['subtitles'],
+                         [{'lang': 'yue', 'name': 'Cantonese', 'url': 'https://s/yue.json3', 'auto': True}])
+        StubYDL.script = [{'requested_formats': [fmt]}]
+        self.assertEqual(worker.resolve({'id': 'a' * 11})['subtitles'], [])
+
+    def test_resolve_lists_audio_languages(self):
+        def audio(fid, lang, note, pref, abr=128, **more):
+            return {'url': f'https://a/{fid}', 'vcodec': 'none', 'acodec': 'opus', 'format_id': fid, 'language': lang,
+                    'format_note': note, 'language_preference': pref, 'abr': abr, 'protocol': 'https', **more}
+        video_fmt = {'url': 'https://v/1', 'vcodec': 'vp9', 'height': 1080, 'protocol': 'https'}
+        fmts = [video_fmt,
+                audio('140-0', 'fr', 'French, medium', -1, abr=129),
+                audio('251-0', 'fr', 'French, medium', -1),
+                audio('251-1', 'en-US', 'English (US) original (default), medium', 10),
+                audio('140-1', 'de', 'German, medium', -1),
+                audio('251-2', 'es', 'Spanish, medium', -1, protocol='m3u8_native')]
+        StubYDL.script = [{'formats': fmts, 'requested_formats': [video_fmt, fmts[3]]}]
+        self.assertEqual(worker.resolve({'id': 'a' * 11})['audio_tracks'], [
+            {'lang': 'en-US', 'name': 'English (US) original', 'url': 'https://a/251-1', 'original': True},
+            {'lang': 'fr', 'name': 'French', 'url': 'https://a/251-0', 'original': False},
+            {'lang': 'de', 'name': 'German', 'url': 'https://a/140-1', 'original': False}])
+        # One language is nothing to choose from.
+        StubYDL.script = [{'formats': [video_fmt, fmts[3]], 'requested_formats': [video_fmt, fmts[3]]}]
+        self.assertEqual(worker.resolve({'id': 'a' * 11})['audio_tracks'], [])
+
     def test_n_is_clamped(self):
         StubYDL.entries = staticmethod(lambda: (video(i) for i in range(300)))
         self.assertEqual(len(worker.list_op({'url': SEARCH, 'n': 1000})['entries']), 200)
@@ -423,7 +463,20 @@ class WorkerTests(unittest.TestCase):
             self.assertNotIn('skip_download', opts)
             self.assertEqual(StubYDL.made[1].opts['format_sort'], ['res:1080', 'vcodec:vp9'])
             self.assertEqual(out, {'file': os.path.join(d, 'a' * 11 + '.mp4'), 'bytes': 100, 'title': 'Ti',
-                                   'channel': 'Ch', 'channel_id': CHANNEL, 'duration': 9.0})
+                                   'channel': 'Ch', 'channel_id': CHANNEL, 'duration': 9.0, 'subtitles': []})
+
+    def test_download_lists_the_caption_tracks(self):
+        import tempfile
+        url = 'https://www.youtube.com/api/timedtext?v=a&lang=en&fmt=json3'
+
+        def download(ydl, vid):
+            info = fake_download(ydl, vid)
+            info['subtitles'] = {'en': [{'ext': 'json3', 'url': url, 'name': 'English'}]}
+            return info
+        StubYDL.downloader = download
+        with tempfile.TemporaryDirectory() as d:
+            out = worker.download_op({'rid': 1, 'id': 'a' * 11, 'dir': d}, lambda e: None)
+        self.assertEqual(out['subtitles'], [{'lang': 'en', 'name': 'English', 'url': url, 'auto': False}])
 
     def test_download_dir_is_not_a_template(self):
         import tempfile

@@ -159,7 +159,7 @@ final class MPVPlayer {
         case .volume(let v): command(["add", "volume", String(v)])
         case .speedStep(let n):
             set(speed: min(max(speed + Double(n) * 0.25, 0.25), 4.0))
-        case .fullscreen, .exitFullscreen, .close, .next, .previous, .openChannel, .quality, .undoSkip, .saveOffline, .toggleComments, .toggleSubscription, .miniPlayer: break
+        case .fullscreen, .exitFullscreen, .close, .next, .previous, .openChannel, .quality, .subtitles, .audio, .undoSkip, .saveOffline, .toggleComments, .toggleSubscription, .miniPlayer: break
         }
     }
 
@@ -189,6 +189,12 @@ final class MPVPlayer {
         if start > 0 { args.append("start=" + String(format: "%.1f", start)) }
         command(args)
     }
+
+    /// Shows a subtitle file in place of any shown before; a new load drops it, so it is added again after each.
+    /// (Not `sub-remove` first: with nothing to remove it fails, and its log line would read as the next load's error.)
+    func showSubtitles(_ file: URL) { command(["sub-add", file.path, "select"]) }
+
+    func hideSubtitles() { setProperty("sid", "no") }
 
     func stop() { command(["stop"]) }
     func seek(to seconds: Double) { issue(seeks.request(to: seconds, duration: duration, exact: false)) }

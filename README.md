@@ -24,7 +24,7 @@ The window has a sidebar with one section per tab:
 - Subscriptions: the newest videos from the channels you follow, newest first. The feed is built from each channel's public RSS feed, opens straight from a local cache and refreshes in the background.
 - History: every video you played, with how far you got. A partly watched video resumes where you stopped.
 - Playlists: YouTube playlists opened from a link or from a channel page. They play in order and advance on their own. Matinee doesn't make or edit playlists of its own.
-- Downloads: videos saved for offline viewing, kept in `~/Movies/Matinee`.
+- Downloads: videos saved for offline viewing, kept in `~/Movies/Matinee` together with their subtitles.
 - For You: recommendations ranked on your Mac (see below).
 - Settings.
 
@@ -84,17 +84,19 @@ In the player:
 | ↑ ↓, - = | Volume |
 | , . | Slower or faster |
 | F | Fullscreen |
-| I | Mini player: the video keeps playing in a corner while you browse. Click it or press ⌘P to bring it back |
+| I | Mini player: the video keeps playing in a corner while you browse. Click it or press ⌘P to bring it back. Leaving the player any other way (Escape, C, another section) does the same; the mini player's ✕ stops the video |
 | ⇧N | Next in the playlist, or the first "Up next" video when there's no playlist |
 | ⇧P | Previous in the playlist |
 | O | Comments and Up next panel (↑ ↓ to move, Return to open, Tab to switch tabs, Escape to close) |
 | Q | Quality (↑ ↓ to choose, Return to apply, Escape to close) |
+| V | Subtitles, the same way. Matinee remembers the language and turns it on for the next videos that have it |
+| A | Audio language, for videos dubbed into other languages. Matinee remembers the choice |
 | S | Save for offline |
 | D | Subscribe or unsubscribe |
 | C | Open the channel |
 | U | Undo the last SponsorBlock skip |
 | Return | Open in Brave, when a video needs a signed-in account |
-| Escape | Leave fullscreen, then close the player |
+| Escape | Leave fullscreen, then shrink to the mini player |
 
 ## Settings file
 
@@ -102,6 +104,7 @@ Every setting is also kept in `~/.config/matinee/settings.json`, so you or a scr
 
 ```json
 {
+  "audioLanguage" : "",
   "braveProfile" : "",
   "dearrowThumbnails" : true,
   "dearrowTitles" : true,
@@ -119,11 +122,12 @@ Every setting is also kept in `~/.config/matinee/settings.json`, so you or a scr
     "preview" : false,
     "selfpromo" : true,
     "sponsor" : true
-  }
+  },
+  "subtitleLanguage" : ""
 }
 ```
 
-`defaultQuality` is the highest resolution to play: 2160, 1440, 1080, 720 or 480, or 0 for the best available. `braveProfile` is the Brave profile folder name, such as `Profile 1`; empty means the default profile.
+`defaultQuality` is the highest resolution to play: 2160, 1440, 1080, 720 or 480, or 0 for the best available. `braveProfile` is the Brave profile folder name, such as `Profile 1`; empty means the default profile. `subtitleLanguage` and `audioLanguage` are language codes such as `en` or `pt-BR`, set by the player's V and A menus. An empty `subtitleLanguage` means subtitles are off; an empty `audioLanguage` plays each video in its original language.
 
 ## Recommendations without an account
 

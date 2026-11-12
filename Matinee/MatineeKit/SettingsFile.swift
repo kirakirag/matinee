@@ -11,15 +11,18 @@ public enum SettingsFile {
         ("recommendations", true), ("localModels", true),
     ]
 
+    /// Free text: the Brave profile, and the subtitle and audio languages last picked in the player ("" is none).
+    private static let strings = ["braveProfile", "subtitleLanguage", "audioLanguage"]
+
     /// Every setting with its current value (or default), pretty-printed with sorted keys.
     public static func json(from defaults: UserDefaults) -> Data {
         var o: [String: Any] = [
             "defaultQuality": defaults.integer(forKey: "defaultQuality"),
-            "braveProfile": defaults.string(forKey: "braveProfile") ?? "",
             "sponsorblock": Dictionary(uniqueKeysWithValues: SponsorBlock.categories.map {
                 ($0.id, defaults.object(forKey: "sponsorblock.\($0.id)") as? Bool ?? $0.defaultOn)
             }),
         ]
+        for key in strings { o[key] = defaults.string(forKey: key) ?? "" }
         for b in bools { o[b.key] = defaults.object(forKey: b.key) as? Bool ?? b.defaultValue }
         // Only plain values go in, so this can't fail.
         return try! JSONSerialization.data(withJSONObject: o, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
@@ -39,7 +42,7 @@ public enum SettingsFile {
                 if let n = number(value), !isBool(n), qualities.contains(n.intValue), n.doubleValue == Double(n.intValue) {
                     defaults.set(n.intValue, forKey: key)
                 } else { skipped.append(key) }
-            case "braveProfile":
+            case _ where strings.contains(key):
                 if let s = value as? String { defaults.set(s, forKey: key) } else { skipped.append(key) }
             case "sponsorblock":
                 guard let inner = value as? [String: Any] else { skipped.append(key); continue }

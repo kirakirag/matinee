@@ -20,9 +20,12 @@ Request:  {"rid": int, "op": "resolve", "id": str, "clients": [str] | absent, "m
           list replies {"cursor", "title", "channel_id", "channel", "entries", "done"}, more {"entries", "done"},
           playlists {"playlists": [{"id", "title"}]} (candidates: the app verifies membership)
           download sends {"rid", "event": "progress", "downloaded": int, "total": int|null} lines (at most every
-          0.5 s) before its reply {"file", "bytes", "title", "channel", "channel_id", "duration"}
+          0.5 s) before its reply {"file", "bytes", "title", "channel", "channel_id", "duration", "subtitles"}
+          (subtitles as resolve's; the app saves them next to the file)
 Response: {"rid", "ok", "error", "video_url", "audio_url", "height", "vcodec", "acodec",
-           "expire", "headers", "available_at", "qualities", "jsc", "ms"}
+           "expire", "headers", "available_at", "qualities", "jsc", "ms",
+           "subtitles": [{"lang", "name", "url" (json3), "auto": bool}],
+           "audio_tracks": [{"lang", "name", "url", "original": bool}] (empty unless there are several languages)}
 Prints {"ready": true} once at start. Requests run concurrently (up to MAX_PARALLEL); replies come in
 completion order, matched by rid.
 Run with `python3 -I`. The Deno binary's path comes from MATINEE_DENO.
@@ -136,7 +139,61 @@ def resolve(req):
         'channel': info.get('channel'),
         'channel_id': info.get('channel_id'),
         'duration': info.get('duration'),
+        'subtitles': subtitles_of(info),
+        'audio_tracks': audio_tracks_of(info, audio),
     }
+
+
+MAX_TRACKS = 200
+ORIGINAL_SUFFIX = '-orig'
+
+
+def subtitles_of(info):
+    """The video's caption tracks as json3 URLs: the uploaded ones, then the auto-generated one in the spoken
+    language. YouTube's machine translations of those (some 150 languages each) are left out."""
+    def track(lang, formats, auto):
+        if not isinstance(lang, str) or not isinstance(formats, list):
+            return None
+        f = next((f for f in formats if isinstance(f, dict) and f.get('ext') == 'json3'
+                  and str(f.get('url', '')).startswith('https://')), None)
+        if not f:
+            return None
+        name = f.get('name') if isinstance(f.get('name'), str) else ''
+        if name.endswith(' (Original)'):
+            name = name[:-len(' (Original)')]
+        return {'lang': lang, 'name': name or lang, 'url': f['url'], 'auto': auto}
+
+    out = [track(lang, fs, False) for lang, fs in (info.get('subtitles') or {}).items() if lang != 'live_chat']
+    auto = info.get('automatic_captions') or {}
+    spoken = [k for k in auto if isinstance(k, str) and k.endswith(ORIGINAL_SUFFIX)]
+    if spoken:
+        out += [track(k[:-len(ORIGINAL_SUFFIX)], auto[k], True) for k in spoken]
+    elif len(auto) <= 3:   # a client without the translation list reports only what was generated
+        out += [track(k, fs, True) for k, fs in auto.items()]
+    return [t for t in out if t][:MAX_TRACKS]
+
+
+def audio_tracks_of(info, chosen):
+    """One stream per audio language (dubs, described audio) when the video has more than one, the original first;
+    each is the same kind of stream as the chosen one where the language has it, else its best."""
+    by_lang = {}
+    for f in info.get('formats') or []:
+        if (f.get('vcodec') not in (None, 'none') or f.get('acodec') in (None, 'none') or not f.get('language')
+                or f.get('protocol') != 'https' or not str(f.get('url', '')).startswith('https://')):
+            continue
+        by_lang.setdefault(f['language'], []).append(f)
+    if len(by_lang) < 2:
+        return []
+    kind = str((chosen or {}).get('format_id', '')).split('-')[0]
+    out = []
+    for lang, fs in by_lang.items():
+        f = max(fs, key=lambda f: (str(f.get('format_id', '')).split('-')[0] == kind, f.get('abr') or f.get('tbr') or 0))
+        # "English (US) original (default), medium": the track's name, then the stream's quality
+        name = str(f.get('format_note') or '').split(',')[0].replace(' (default)', '').strip()
+        out.append({'lang': lang, 'name': name or lang, 'url': f['url'],
+                    'original': (f.get('language_preference') or -1) >= 5})
+    out.sort(key=lambda t: (not t['original'], t['name'].lower()))
+    return out[:MAX_TRACKS]
 
 
 LIST_URL_RE = re.compile(
@@ -465,6 +522,7 @@ def download_op(req, emit):
         'channel': info.get('channel'),
         'channel_id': info.get('channel_id'),
         'duration': info.get('duration'),
+        'subtitles': subtitles_of(info),
     }
 
 

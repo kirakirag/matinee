@@ -25,7 +25,9 @@ private func object(_ data: Data) throws -> [String: Any] {
     #expect(o["braveProfile"] as? String == "")
     let sponsor = try #require(o["sponsorblock"] as? [String: Bool])
     #expect(sponsor == Dictionary(uniqueKeysWithValues: SponsorBlock.categories.map { ($0.id, $0.defaultOn) }))
-    #expect(o.count == 9)
+    #expect(o["subtitleLanguage"] as? String == "")
+    #expect(o["audioLanguage"] as? String == "")
+    #expect(o.count == 11)
 }
 
 @Test func jsonReflectsStoredValues() throws {

@@ -1,7 +1,7 @@
 import Foundation
 
 public enum PlayerCommand: Equatable, Sendable {
-    case togglePause, seek(Double), volume(Int), speedStep(Int), fullscreen, exitFullscreen, close, next, previous, openChannel, quality, undoSkip, saveOffline, toggleComments, toggleSubscription, miniPlayer
+    case togglePause, seek(Double), volume(Int), speedStep(Int), fullscreen, exitFullscreen, close, next, previous, openChannel, quality, subtitles, audio, undoSkip, saveOffline, toggleComments, toggleSubscription, miniPlayer
 }
 
 public enum SpecialKey: Sendable { case left, right, up, down, escape, space }
@@ -36,6 +36,8 @@ public enum PlayerKeyMap {
         switch chord.key {
         case "c": return .openChannel
         case "q": return .quality
+        case "v": return .subtitles
+        case "a": return .audio
         case "u": return .undoSkip
         case "s": return .saveOffline
         case "-": return .volume(-5)
