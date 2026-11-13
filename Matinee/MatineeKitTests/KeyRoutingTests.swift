@@ -13,10 +13,10 @@ private func route(_ key: String, code: UInt16 = 0, command: Bool = false, shift
     #expect(route("\u{1b}", code: 53, special: .escape, player: true, hasRoute: true) == .player(.close))
 }
 
-@Test func cmdEscapeStopsTheVideoFullOrMini() {
-    let stop = KeyChord(key: "\u{1b}", command: true)
+@Test func cmdWStopsTheVideoFullOrMini() {
+    let stop = KeyChord(key: "w", command: true)
     func r(player: Bool, mini: Bool, fullscreen: Bool = false) -> KeyRoute {
-        KeyRouting.route(chord: stop, keyCode: 53, special: .escape, playerPresented: player, textFieldFocused: false,
+        KeyRouting.route(chord: stop, keyCode: 13, special: nil, playerPresented: player, textFieldFocused: false,
                          hasRoute: true, playerNeedsAccount: false, qualityMenuOpen: false, fullscreen: fullscreen,
                          playerMini: mini)
     }

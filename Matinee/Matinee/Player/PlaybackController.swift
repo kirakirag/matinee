@@ -84,7 +84,7 @@ import os
     @ObservationIgnored var onSingleOpen: ((Item, Int) -> Void)?
     private(set) var phase = Phase.idle
     private(set) var isPresented = false
-    /// Shrunk to a corner of the window (I), still playing while you browse.
+    /// Shrunk to a corner of the window, still playing while you browse.
     private(set) var isMini = false
     private(set) var braveError: String?
     /// Shown briefly over the controls: "Skipped Sponsor · U to undo", or why subtitles failed.

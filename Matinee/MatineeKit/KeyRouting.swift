@@ -34,8 +34,8 @@ public enum KeyRouting {
             if cmd == .delete, playerPresented { return .swallow }
             return KeyMap.shouldHandle(cmd, textFieldFocused: textFieldFocused) ? .global(cmd) : .pass
         }
-        // ⌘Escape stops the video, whether it fills the window or plays in the mini player.
-        if special == .escape, chord.command, !chord.shift, !chord.option, !chord.control, playerPresented || playerMini {
+        // ⌘W stops the video, whether it fills the window or plays in the mini player; with no video it closes the window.
+        if chord == KeyChord(key: "w", command: true), playerPresented || playerMini {
             return .player(.stop)
         }
         let plain = !chord.command && !chord.shift && !chord.option && !chord.control

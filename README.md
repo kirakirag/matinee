@@ -96,9 +96,9 @@ In the player:
 | U | Undo the last SponsorBlock skip |
 | Return | Open in Brave, when a video needs a signed-in account |
 | Escape | Leave fullscreen, then shrink to the mini player |
-| ⌘Escape | Stop the video, also from the mini player |
+| ⌘W | Stop the video, also from the mini player |
 
-Leaving the player (Escape, C, another section) keeps the video playing in a corner while you browse. Click the mini player or press ⌘P to bring it back; its ✕ or ⌘Escape stops the video.
+Leaving the player (Escape, C, another section) keeps the video playing in a corner while you browse. Click the mini player or press ⌘P to bring it back; its ✕ or ⌘W stops the video. With no video playing, ⌘W closes the window.
 
 ## Settings file
 
