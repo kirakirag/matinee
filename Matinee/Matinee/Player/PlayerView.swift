@@ -399,8 +399,14 @@ private struct SidePanel: View {
                     .help("Close (O)")
             }
             .padding(12)
+            // Its own opaque backing above the list, so rows scrolling up never show through the tabs.
+            .background(Color(white: 0.11))
+            .zIndex(1)
             Divider()
-            if tab == .upNext { UpNextList(player: player) } else { CommentsList(player: player) }
+            Group {
+                if tab == .upNext { UpNextList(player: player) } else { CommentsList(player: player) }
+            }
+            .clipped()
         }
         // Opaque: a material over the playing video re-blurs every frame, which made scrolling lag.
         .background(Color(white: 0.11))
