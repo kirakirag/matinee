@@ -22,12 +22,13 @@ private func object(_ data: Data) throws -> [String: Any] {
     #expect(o["showComments"] as? Bool == false)
     #expect(o["recommendations"] as? Bool == true)
     #expect(o["localModels"] as? Bool == true)
+    #expect(o["headGestures"] as? Bool == false)
     #expect(o["braveProfile"] as? String == "")
     let sponsor = try #require(o["sponsorblock"] as? [String: Bool])
     #expect(sponsor == Dictionary(uniqueKeysWithValues: SponsorBlock.categories.map { ($0.id, $0.defaultOn) }))
     #expect(o["subtitleLanguage"] as? String == "")
     #expect(o["audioLanguage"] as? String == "")
-    #expect(o.count == 11)
+    #expect(o.count == 12)
 }
 
 @Test func jsonReflectsStoredValues() throws {

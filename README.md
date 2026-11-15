@@ -34,6 +34,7 @@ Some other things Matinee does:
 
 - SponsorBlock skips sponsor and self-promotion segments, and U undoes the last skip.
 - DeArrow replaces clickbait titles and thumbnails with community ones. When DeArrow has no thumbnail, Matinee shows a frame from the middle of the video, never the uploader's designed thumbnail.
+- With AirPods Pro, Max, or 3rd generation or later, head gestures can control the player: nod to play or pause, shake for the next video, hold a tilt to seek, faster the longer you hold it. After a SponsorBlock skip, a shake undoes it. Off by default; turn it on in Settings. The gesture rules come from [MousePods](https://github.com/starman-tech/mousepods) by Matteo Gaudioso.
 - The player can show a video's top comments in a side panel. This is off by default and read-only.
 - Some videos won't play without a YouTube account (age-restricted, members-only, or "confirm you're not a bot"). For those, the player says so and offers to open the video in Brave, in the browser profile you choose in Settings.
 
@@ -111,6 +112,7 @@ Every setting is also kept in `~/.config/matinee/settings.json`, so you or a scr
   "dearrowThumbnails" : true,
   "dearrowTitles" : true,
   "defaultQuality" : 0,
+  "headGestures" : false,
   "localModels" : true,
   "openglPlayback" : false,
   "recommendations" : true,

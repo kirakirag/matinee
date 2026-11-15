@@ -8,7 +8,7 @@ public enum SettingsFile {
 
     private static let bools: [(key: String, defaultValue: Bool)] = [
         ("openglPlayback", false), ("dearrowTitles", true), ("dearrowThumbnails", true), ("showComments", false),
-        ("recommendations", true), ("localModels", true),
+        ("recommendations", true), ("localModels", true), ("headGestures", false),
     ]
 
     /// Free text: the Brave profile, and the subtitle and audio languages last picked in the player ("" is none).

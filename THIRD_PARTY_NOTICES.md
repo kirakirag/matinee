@@ -79,6 +79,12 @@ Fetched by `Scripts/fetch_runtime.sh` at the versions pinned in `Scripts/runtime
 | Swift ASN.1 | Apache-2.0 | https://github.com/apple/swift-asn1 |
 | swift-syntax (build time only) | Apache-2.0 | https://github.com/swiftlang/swift-syntax |
 
+## Ported code
+
+AirPods head gestures (`MatineeKit/Playback/HeadGestures.swift`) port the nod, shake and tilt rules and thresholds of MousePods' `gestures.py`, rewritten in Swift and changed for CoreMotion's attitude, Apache-2.0:
+
+> MousePods. Copyright 2026 Matteo Gaudioso (starman-tech), https://github.com/starman-tech/mousepods. This product includes software and research developed by Matteo Gaudioso.
+
 ## Downloaded at run time, not included
 
 With Local AI ranking on, Matinee downloads two models from Hugging Face: multilingual-e5-large (MIT) and JevK5 (Apache-2.0). SponsorBlock and DeArrow data comes from their public APIs and is licensed CC BY-NC-SA 4.0 by https://sponsor.ajay.app.

@@ -30,6 +30,14 @@ import os
     @ObservationIgnored private var skipper: SponsorSkipper?
     @ObservationIgnored private var segmentsTask: Task<Void, Never>?
     @ObservationIgnored private var noticeTask: Task<Void, Never>?
+    /// The notice is a skip's: a shake undoes it, a nod keeps it.
+    @ObservationIgnored private var skipNoticeShown = false
+    /// AirPods nods, shakes and tilts (Settings' "Head gestures"), acted on while the player is open and Matinee is in
+    /// front.
+    @ObservationIgnored private let headTracker = HeadTracker()
+    @ObservationIgnored private var headTrackingStop: Task<Void, Never>?
+    private static let headTrackingLinger = Duration.seconds(30)
+    static var headGesturesEnabled: Bool { UserDefaults.standard.bool(forKey: "headGestures") }
     @ObservationIgnored private let player: MPVPlayer
     @ObservationIgnored private var session = PlaybackSession()
     @ObservationIgnored private var openTask: Task<Void, Never>?
@@ -218,6 +226,10 @@ import os
             MainActor.assumeIsolated { self?.isFullscreen = false }
         }
         nowPlaying = NowPlaying(player: self)
+        headTracker.onGesture = { [weak self] in self?.headGesture($0) }
+        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.syncHeadTracking() }
+        }
     }
 
     /// Opens one video and clears any queue.
@@ -323,6 +335,7 @@ import os
         openTask = Task { await run(item, token) }
         loadSegments(for: item.videoId)
         if panelVisible { loadPanel() }
+        syncHeadTracking()
     }
 
     /// Leaving the player (Escape, another section, a channel) keeps the video playing in the corner. A video that
@@ -334,6 +347,7 @@ import os
         menuIndex = nil
         isPresented = false
         isMini = true
+        syncHeadTracking()
     }
 
     /// Stops: pauses, saves the position, and frees the video a while later (the mini player's ✕, closing the window).
@@ -344,6 +358,7 @@ import os
         player.pause()
         isPresented = false
         isMini = false
+        syncHeadTracking()
         unloadTask?.cancel()
         unloadTask = Task { [weak self] in
             try? await Task.sleep(for: Self.unloadDelay)
@@ -373,6 +388,7 @@ import os
             reload()
         }
         player.play()
+        syncHeadTracking()
     }
 
     func handle(_ c: PlayerCommand) {
@@ -408,6 +424,7 @@ import os
                 seek(to: start)
                 noticeTask?.cancel()
                 notice = nil
+                skipNoticeShown = false
             }
         default: player.perform(c)
         }
@@ -893,6 +910,7 @@ import os
         skipper = nil
         noticeTask?.cancel()
         notice = nil
+        skipNoticeShown = false
         guard let sponsorBlock else { return }
         segmentsTask = Task {
             let segments = await sponsorBlock.segments(for: videoId)
@@ -904,15 +922,60 @@ import os
     private func skip(_ segment: SponsorSegment) {
         seek(to: segment.end)
         let name = SponsorBlock.categories.first { $0.id == segment.category }?.title ?? segment.category
-        showNotice("Skipped \(name) · U to undo")
+        showNotice("Skipped \(name) · \(headTracker.isRunning ? "U or shake" : "U") to undo")
+        skipNoticeShown = true
     }
 
     private func showNotice(_ text: String) {
         notice = text
+        skipNoticeShown = false
         noticeTask?.cancel()
         noticeTask = Task {
             try? await Task.sleep(for: .seconds(3))
-            if !Task.isCancelled { notice = nil }
+            if !Task.isCancelled {
+                notice = nil
+                skipNoticeShown = false
+            }
+        }
+    }
+
+    // MARK: Head gestures
+
+    /// Starting and stopping the AirPods' motion stream switches what they send over Bluetooth, and doing it often
+    /// can drop their audio in every app. So it runs as long as the player is open, in front or not, and stops a
+    /// while after the player closes (at once when the setting is turned off).
+    private func syncHeadTracking() {
+        if !Self.headGesturesEnabled || item != nil && (isPresented || isMini) {
+            headTrackingStop?.cancel()
+            headTrackingStop = nil
+        }
+        guard Self.headGesturesEnabled else { return headTracker.stop() }
+        if item != nil, isPresented || isMini {
+            headTracker.start()
+        } else if headTracker.isRunning, headTrackingStop == nil {
+            headTrackingStop = Task { [weak self] in
+                try? await Task.sleep(for: Self.headTrackingLinger)
+                guard !Task.isCancelled else { return }
+                self?.headTrackingStop = nil
+                self?.headTracker.stop()
+            }
+        }
+    }
+
+    /// Nod plays or pauses, shake goes to the next video, a held tilt seeks and repeats, faster the longer it's held.
+    /// While a skip's notice is up, a shake undoes the skip and a nod keeps it.
+    private func headGesture(_ g: HeadGesture) {
+        // Defaults can change before NSApp exists (launch); nodding along in another app does nothing.
+        guard isPresented || isMini, NSApp?.isActive == true else { return }
+        switch g {
+        case .nod where skipNoticeShown:
+            noticeTask?.cancel()
+            notice = nil
+            skipNoticeShown = false
+        case .shake where skipNoticeShown: handle(.undoSkip)
+        case .nod: handle(.togglePause)
+        case .shake: handle(.next)
+        case .tiltLeft, .tiltRight: if let s = g.seekSeconds { handle(.seek(s)) }
         }
     }
 

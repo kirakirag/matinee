@@ -16,6 +16,8 @@ struct SettingsView: View {
     @AppStorage("defaultQuality") private var defaultQuality = 0
     /// Read once at launch by MPVPlayer.usesMetal.
     @AppStorage("openglPlayback") private var openglPlayback = false
+    /// Read by PlaybackController.headGesturesEnabled.
+    @AppStorage("headGestures") private var headGestures = false
     /// Read by PlaybackController.commentsEnabled.
     @AppStorage("showComments") private var showComments = false
     /// Read by ForYouModel.isEnabled and PlaybackController.upNextEnabled.
@@ -33,14 +35,14 @@ struct SettingsView: View {
     enum TakeoutFile { case history, subscriptions }
 
     enum Row: Hashable {
-        case quality, opengl, dearrowTitles, dearrowThumbnails, comments, subscriptions, recommendations, localModels, models
+        case quality, opengl, headGestures, dearrowTitles, dearrowThumbnails, comments, subscriptions, recommendations, localModels, models
         case takeout
         case sponsor(String)
         case brave
     }
 
     private var rows: [Row] {
-        [.quality, .opengl, .dearrowTitles, .dearrowThumbnails, .comments, .subscriptions, .recommendations, .localModels,
+        [.quality, .opengl, .headGestures, .dearrowTitles, .dearrowThumbnails, .comments, .subscriptions, .recommendations, .localModels,
          .models, .takeout]
             + SponsorBlock.categories.map { .sponsor($0.id) } + [.brave]
     }
@@ -91,6 +93,11 @@ struct SettingsView: View {
                 Text(MPVPlayer.metalAvailable
                      ? "Takes effect after restarting Matinee."
                      : "This build's libmpv can't draw with Metal (run Scripts/build_mpv.sh), so OpenGL is used.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Toggle("Head gestures with AirPods", isOn: $headGestures).row(.headGestures, selected)
+                Text(HeadTracker.isDenied
+                     ? "Matinee isn't allowed to read head movement. Turn it on in System Settings → Privacy & Security → Motion & Fitness."
+                     : "Nod to play or pause, shake for the next video, hold a tilt to seek, faster the longer you hold it. After a SponsorBlock skip, a shake undoes it. Needs AirPods Pro, Max, or 3rd generation or later.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("DeArrow") {
@@ -265,6 +272,7 @@ struct SettingsView: View {
     private func toggleValue(_ row: Row) -> Bool? {
         switch row {
         case .opengl: openglPlayback
+        case .headGestures: headGestures
         case .dearrowTitles: dearrowTitles
         case .dearrowThumbnails: dearrowThumbnails
         case .comments: showComments
@@ -281,6 +289,7 @@ struct SettingsView: View {
         guard isSelectable(row) else { return }
         switch row {
         case .opengl: openglPlayback.toggle()
+        case .headGestures: headGestures.toggle()
         case .dearrowTitles: dearrowTitles.toggle()
         case .dearrowThumbnails: dearrowThumbnails.toggle()
         case .comments: showComments.toggle()
