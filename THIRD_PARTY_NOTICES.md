@@ -81,7 +81,7 @@ Fetched by `Scripts/fetch_runtime.sh` at the versions pinned in `Scripts/runtime
 
 ## Ported code
 
-AirPods head gestures (`MatineeKit/Playback/HeadGestures.swift`) port the nod, shake and tilt rules and thresholds of MousePods' `gestures.py`, rewritten in Swift and changed for CoreMotion's attitude, Apache-2.0:
+The head-tilt gesture (`MatineeKit/HeadGestures/TiltTracker.swift`) ports the hold-and-latch rules of MousePods' `gestures.py`, rewritten in Swift and changed to take its angles from each person's calibration, Apache-2.0:
 
 > MousePods. Copyright 2026 Matteo Gaudioso (starman-tech), https://github.com/starman-tech/mousepods. This product includes software and research developed by Matteo Gaudioso.
 

@@ -85,6 +85,12 @@ if [[ "$details" != *"flags="*runtime* ]]; then
     echo "The staged app is not signed with the hardened runtime." >&2
     exit 1
 fi
+# Nothing may carry the builder's home folder (e.g. __pycache__ written by a Python that imported from the bundle).
+if leaks=$(LC_ALL=C grep -rlaF "$HOME/" "$app"); then
+    echo "These files contain $HOME/ (delete them from the bundle):" >&2
+    echo "$leaks" | sed "s#^$app/##" >&2
+    exit 1
+fi
 
 # 6. Package or install.
 if $release; then

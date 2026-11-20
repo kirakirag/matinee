@@ -1,13 +1,12 @@
 import CoreMotion
 import MatineeKit
 
-/// AirPods head motion (Pro, Max, 3rd generation and later), turned into gestures on the main thread.
+/// AirPods head motion (Pro, Max, 3rd generation and later) as `HeadSample`s on the main thread.
 /// The first start asks for Motion & Fitness access.
 @MainActor final class HeadTracker {
     private let manager = CMHeadphoneMotionManager()
-    private var detector = HeadGestureDetector()
     private(set) var isRunning = false
-    var onGesture: ((HeadGesture) -> Void)?
+    var onSample: ((HeadSample) -> Void)?
 
     static var isDenied: Bool {
         let s = CMHeadphoneMotionManager.authorizationStatus()
@@ -17,7 +16,6 @@ import MatineeKit
     func start() {
         guard !isRunning, manager.isDeviceMotionAvailable, !Self.isDenied else { return }
         isRunning = true
-        detector.reset()
         manager.startDeviceMotionUpdates(to: .main) { [weak self] motion, _ in
             guard let motion else { return }
             MainActor.assumeIsolated { self?.handle(motion) }
@@ -32,11 +30,11 @@ import MatineeKit
 
     private func handle(_ m: CMDeviceMotion) {
         guard isRunning else { return }
-        let deg = 180 / Double.pi
-        let sample = HeadGestureDetector.Sample(
+        let deg = 180 / Double.pi, a = m.userAcceleration
+        onSample?(HeadSample(
             t: m.timestamp,
             pitchRate: m.rotationRate.x * deg, rollRate: m.rotationRate.y * deg, yawRate: m.rotationRate.z * deg,
-            pitch: m.attitude.pitch * deg, roll: m.attitude.roll * deg)
-        if let g = detector.feed(sample) { onGesture?(g) }
+            pitch: m.attitude.pitch * deg, roll: m.attitude.roll * deg, yaw: m.attitude.yaw * deg,
+            accel: (a.x * a.x + a.y * a.y + a.z * a.z).squareRoot()))
     }
 }

@@ -3,10 +3,28 @@ import MatineeKit
 
 private func route(_ key: String, code: UInt16 = 0, command: Bool = false, shift: Bool = false, special: SpecialKey? = nil,
                    player: Bool = false, field: Bool = false, hasRoute: Bool = false, needsAccount: Bool = false,
-                   qualityMenu: Bool = false, fullscreen: Bool = false, panel: Bool = false) -> KeyRoute {
+                   qualityMenu: Bool = false, fullscreen: Bool = false, panel: Bool = false, settings: Bool = false) -> KeyRoute {
     KeyRouting.route(chord: KeyChord(key: key, command: command, shift: shift), keyCode: code, special: special,
                      playerPresented: player, textFieldFocused: field, hasRoute: hasRoute, playerNeedsAccount: needsAccount,
-                     qualityMenuOpen: qualityMenu, fullscreen: fullscreen, panelOpen: panel)
+                     qualityMenuOpen: qualityMenu, fullscreen: fullscreen, panelOpen: panel, settingsShown: settings)
+}
+
+@Test func settingsTakesItsKeysWhileItShows() {
+    #expect(route("\u{F701}", code: 125, special: .down, settings: true) == .settings(.down))
+    #expect(route("k", settings: true) == .settings(.up))
+    #expect(route("l", settings: true) == .settings(.right))
+    #expect(route(" ", code: 49, special: .space, settings: true) == .settings(.activate))
+    #expect(route("\r", code: 36, settings: true) == .settings(.activate))
+    #expect(route("\u{7f}", code: 51, settings: true) == .settings(.delete))
+    #expect(route("j") == .pass)   // another section: the list's own key
+}
+
+@Test func settingsLeavesTypingSectionKeysAndThePlayerAlone() {
+    #expect(route("j", field: true, settings: true) == .pass)   // the Brave profile field
+    #expect(route("e", settings: true) == .global(.section(.history)))
+    #expect(route(",", command: true, settings: true) == .global(.section(.settings)))
+    #expect(route("j", command: true, settings: true) != .settings(.down))
+    #expect(route("\u{F701}", code: 125, special: .down, player: true, settings: true) != .settings(.down))
 }
 
 @Test func escapeWithPlayerUpClosesPlayer() {
@@ -23,6 +41,20 @@ private func route(_ key: String, code: UInt16 = 0, command: Bool = false, shift
     #expect(r(player: true, mini: false) == .player(.stop))
     #expect(r(player: true, mini: false, fullscreen: true) == .player(.stop))
     #expect(r(player: false, mini: true) == .player(.stop))
+    #expect(r(player: false, mini: false) == .pass)
+}
+
+@Test func cmdZTakesBackAHeadGestureButNotATextFieldsUndo() {
+    let undo = KeyChord(key: "z", command: true)
+    func r(player: Bool, mini: Bool, field: Bool = false) -> KeyRoute {
+        KeyRouting.route(chord: undo, keyCode: 6, special: nil, playerPresented: player, textFieldFocused: field,
+                         hasRoute: true, playerNeedsAccount: false, qualityMenuOpen: false, fullscreen: false,
+                         playerMini: mini)
+    }
+    #expect(r(player: true, mini: false) == .player(.undoGesture))
+    #expect(r(player: true, mini: false, field: true) == .player(.undoGesture))   // the player covers the field
+    #expect(r(player: false, mini: true) == .player(.undoGesture))
+    #expect(r(player: false, mini: true, field: true) == .pass)
     #expect(r(player: false, mini: false) == .pass)
 }
 

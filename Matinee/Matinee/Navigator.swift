@@ -23,6 +23,9 @@ final class Navigator {
     @ObservationIgnored private var noticeTask: Task<Void, Never>?
     /// Set once at launch. While it is presented, player keys go to it.
     @ObservationIgnored var player: PlaybackController?
+    /// The last key for Settings, and a count bumped with each one.
+    private(set) var settingsKey = SettingsKey.down
+    private(set) var settingsKeyRequest = 0
 
     func perform(_ cmd: GlobalCommand) {
         switch cmd {
@@ -112,7 +115,8 @@ final class Navigator {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] original in
             // Shortcuts by physical key under a non-Latin layout; what's passed on (lists, buttons) gets the same.
             let event = original.window?.firstResponder is NSText ? original : KeyLayout.latin(original)
-            guard let self, event.window?.attachedSheet == nil,
+            // A sheet (head gesture calibration) takes its own keys, whichever of the two windows the event names.
+            guard let self, event.window?.attachedSheet == nil, event.window?.sheetParent == nil,
                   let chars = event.charactersIgnoringModifiers?.lowercased() else { return event }
             let flags = event.modifierFlags
             let chord = KeyChord(key: chars, command: flags.contains(.command), shift: flags.contains(.shift),
@@ -130,7 +134,8 @@ final class Navigator {
                                         qualityMenuOpen: self.player?.menuIndex != nil,
                                         fullscreen: self.player?.isFullscreen ?? false,
                                         panelOpen: self.player?.panelOpen ?? false,
-                                        playerMini: self.player?.isMini ?? false) {
+                                        playerMini: self.player?.isMini ?? false,
+                                        settingsShown: self.section == .settings) {
                 case .global(let cmd): self.perform(cmd)
                 case .player(let cmd): self.player?.handle(cmd)
                 case .qualityMenu(let key): self.player?.menuKey(key)
@@ -138,6 +143,9 @@ final class Navigator {
                 case .openBrave: self.player?.openInBrave()
                 case .pop: self.pop()
                 case .swallow: break
+                case .settings(let key):
+                    self.settingsKey = key
+                    self.settingsKeyRequest += 1
                 case .pass: return false
                 }
                 return true

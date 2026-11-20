@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 struct SettingsView: View {
     let store: Store?
     @Environment(Subscriptions.self) private var subscriptions: Subscriptions?
+    @Environment(Navigator.self) private var nav
     /// Which Takeout file the open picker is for.
     @State private var importing: TakeoutFile?
     @State private var importNote: String?
@@ -16,8 +17,11 @@ struct SettingsView: View {
     @AppStorage("defaultQuality") private var defaultQuality = 0
     /// Read once at launch by MPVPlayer.usesMetal.
     @AppStorage("openglPlayback") private var openglPlayback = false
-    /// Read by PlaybackController.headGesturesEnabled.
+    /// Read by HeadGestureService.isSwitchedOn. Only on once calibrated: switching it on first opens the calibration.
     @AppStorage("headGestures") private var headGestures = false
+    @Environment(HeadGestureService.self) private var head: HeadGestureService?
+    @State private var calibrating = false
+    @State private var confirmingReset = false
     /// Read by PlaybackController.commentsEnabled.
     @AppStorage("showComments") private var showComments = false
     /// Read by ForYouModel.isEnabled and PlaybackController.upNextEnabled.
@@ -29,27 +33,29 @@ struct SettingsView: View {
     /// The row the keyboard is on: j/k or ↑/↓ move, Space or Return flips or activates, h/l or ←/→ change a value,
     /// ⌫ on the models row deletes them; Return on the Brave profile edits it, Return or Escape leave the field.
     @State private var selected: Row = .quality
-    @FocusState private var keyboard: Bool
     @FocusState private var editingBrave: Bool
 
     enum TakeoutFile { case history, subscriptions }
 
     enum Row: Hashable {
-        case quality, opengl, headGestures, dearrowTitles, dearrowThumbnails, comments, subscriptions, recommendations, localModels, models
+        case quality, opengl, headGestures, headSetup, headReset, dearrowTitles, dearrowThumbnails, comments, subscriptions
+        case recommendations, localModels, models
         case takeout
         case sponsor(String)
         case brave
     }
 
     private var rows: [Row] {
-        [.quality, .opengl, .headGestures, .dearrowTitles, .dearrowThumbnails, .comments, .subscriptions, .recommendations, .localModels,
-         .models, .takeout]
+        [.quality, .opengl, .headGestures, .headSetup, .headReset, .dearrowTitles, .dearrowThumbnails, .comments, .subscriptions,
+         .recommendations, .localModels, .models, .takeout]
             + SponsorBlock.categories.map { .sponsor($0.id) } + [.brave]
     }
 
     private func isSelectable(_ row: Row) -> Bool {
         switch row {
         case .opengl: MPVPlayer.metalAvailable
+        case .headGestures: head != nil
+        case .headSetup, .headReset: head?.isCalibrated == true
         case .localModels: recommendations
         case .models: models.map { m in m.bytesOnDisk > 0 || modelsAction(m) != nil } ?? false
         case .takeout: store != nil
@@ -70,11 +76,7 @@ struct SettingsView: View {
     var body: some View {
         ScrollViewReader { proxy in
             form
-                .focusable()
-                .focused($keyboard)
-                .focusEffectDisabled()
-                .onKeyPress(phases: .down) { press in handle(press) }
-                .onAppear { keyboard = true }
+                .onChange(of: nav.settingsKeyRequest) { handle(nav.settingsKey) }
                 .onChange(of: selected) { withAnimation(.easeOut(duration: 0.12)) { proxy.scrollTo(selected) } }
         }
     }
@@ -91,13 +93,19 @@ struct SettingsView: View {
                     .disabled(!MPVPlayer.metalAvailable)
                     .row(.opengl, selected)
                 Text(MPVPlayer.metalAvailable
-                     ? "Takes effect after restarting Matinee."
-                     : "This build's libmpv can't draw with Metal (run Scripts/build_mpv.sh), so OpenGL is used.")
+                     ? "Applies after restart"
+                     : "Metal unavailable in this build")
                     .font(.caption).foregroundStyle(.secondary)
-                Toggle("Head gestures with AirPods", isOn: $headGestures).row(.headGestures, selected)
-                Text(HeadTracker.isDenied
-                     ? "Matinee isn't allowed to read head movement. Turn it on in System Settings → Privacy & Security → Motion & Fitness."
-                     : "Nod to play or pause, shake for the next video, hold a tilt to seek, faster the longer you hold it. After a SponsorBlock skip, a shake undoes it. Needs AirPods Pro, Max, or 3rd generation or later.")
+                Toggle("Head gestures with AirPods", isOn: Binding(get: { headGesturesOn }, set: { setHeadGestures($0) }))
+                    .disabled(head == nil)
+                    .row(.headGestures, selected)
+                if head?.isCalibrated == true {
+                    Button("Set Up Head Gestures Again…") { calibrating = true }.row(.headSetup, selected)
+                    Button("Reset Head Gestures…", role: .destructive) { confirmingReset = true }.row(.headReset, selected)
+                }
+                Text(HeadGestureService.isDenied
+                     ? "Allow in System Settings → Privacy & Security → Motion & Fitness"
+                     : "Nod: play/pause · Shake: next · Tilt: seek · ⌘Z: undo")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("DeArrow") {
@@ -106,7 +114,7 @@ struct SettingsView: View {
             }
             Section("Comments") {
                 Toggle("Show comments in the player", isOn: $showComments).row(.comments, selected)
-                Text("O or the speech-bubble button opens a video's comments. They load in the background once a video starts. Read-only: nothing is ever posted.")
+                Text("O to open comments")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Subscriptions") {
@@ -116,47 +124,53 @@ struct SettingsView: View {
                     if let subscriptionsNote { Text(subscriptionsNote).font(.caption).foregroundStyle(.secondary) }
                 }
                 .row(.subscriptions, selected)
-                Text("From Google Takeout: takeout.google.com → YouTube and YouTube Music → subscriptions; unzip and pick subscriptions.csv. Channels you already follow stay as they are.")
+                Text("subscriptions.csv from Google Takeout")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Recommendations") {
                 Toggle("Up next and For You", isOn: $recommendations).row(.recommendations, selected)
-                Text("Up next shows the videos YouTube suggests next to the one playing, from the page Matinee already loads. For You (Y) ranks the suggestions next to your recent history on this Mac: YouTube sees which videos' pages are loaded, never your account or the ranking.")
+                Text("Y to open For You")
                     .font(.caption).foregroundStyle(.secondary)
                 Toggle("Local AI ranking", isOn: $localModels)
                     .disabled(!recommendations)
                     .row(.localModels, selected)
-                Text("Ranks For You with two models that run on this Mac: multilingual-e5 (2.2 GB) reads titles and descriptions, JevK5 (8 GB) checks the top 40. Descriptions of up to 60 videos are read per refresh, one a second. Nothing leaves the Mac.")
-                    .font(.caption).foregroundStyle(.secondary)
                 if let models { ModelsRow(models: models, enabled: localModels && recommendations).row(.models, selected) }
                 HStack {
                     Button("Import YouTube History…") { importing = .history }.disabled(store == nil)
                     if let importNote { Text(importNote).font(.caption).foregroundStyle(.secondary) }
                 }
                 .row(.takeout, selected)
-                Text("From Google Takeout: takeout.google.com → YouTube and YouTube Music → history, format JSON; unzip and pick watch-history.json. For You learns from it; History stays as it is.")
+                Text("watch-history.json from Google Takeout")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("SponsorBlock") {
                 ForEach(SponsorBlock.categories, id: \.id) { c in
                     SkipToggle(id: c.id, title: c.title, defaultOn: c.defaultOn).row(.sponsor(c.id), selected)
                 }
-                Text("Skips these segments automatically; U in the player undoes a skip.")
+                Text("U to undo a skip")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Open in Brave") {
                 TextField("Brave profile", text: $braveProfile, prompt: Text("Default"))
                     .focused($editingBrave)
-                    .onSubmit { keyboard = true }
-                    .onExitCommand { keyboard = true }
+                    .onSubmit { editingBrave = false }
+                    .onExitCommand { editingBrave = false }
                     .row(.brave, selected)
-                Text("Find it in brave://version → Profile Path (e.g. Profile 2).")
+                Text("From brave://version → Profile Path")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Text("j/k move · Space flips · h/l change the quality · ⌫ deletes the models")
                 .font(.caption).foregroundStyle(.tertiary)
         }
         .formStyle(.grouped)
+        .sheet(isPresented: $calibrating) {
+            if let head { HeadGestureCalibrationView().environment(head) }
+        }
+        .confirmationDialog("Reset head gestures?", isPresented: $confirmingReset) {
+            Button("Reset", role: .destructive) { head?.reset() }
+        } message: {
+            Text("Forgets your calibration and turns head gestures off.")
+        }
         .fileImporter(isPresented: Binding(get: { importing != nil }, set: { if !$0 { importing = nil } }),
                       allowedContentTypes: importing == .subscriptions ? [.commaSeparatedText] : [.json]) { result in
             let file = importing
@@ -166,13 +180,11 @@ struct SettingsView: View {
                 Task {
                     subscriptionsNote = await Self.importSubscriptions(url, into: store)
                     await subscriptions.reload()
-                    keyboard = true
                 }
             } else {
                 importNote = "Importing…"
                 Task {
                     importNote = await Self.importTakeout(url, into: store)
-                    keyboard = true
                 }
             }
         }
@@ -203,76 +215,83 @@ struct SettingsView: View {
             do {
                 let watches = try TakeoutHistory.parse(Data(contentsOf: url))
                 let added = try store.saveImportedWatches(watches)
-                return "Imported \(watches.count) videos (\(added) new). For You uses them from its next refresh (⌘R)."
+                return "Imported \(watches.count) videos (\(added) new)."
             } catch is TakeoutHistory.NotTakeout {
-                return "That isn't a Takeout watch-history.json (choose JSON, not HTML, when exporting)."
+                return "Not a Takeout watch-history.json (export as JSON)."
             } catch {
                 return "Couldn't import: \(error.localizedDescription)"
             }
         }.value
     }
 
-    private func handle(_ press: KeyPress) -> KeyPress.Result {
-        guard press.modifiers.isDisjoint(with: [.command, .option, .control]) else { return .ignored }
-        let all = rows, i = all.firstIndex(of: selected) ?? 0
-        let move = { (step: Int) -> KeyPress.Result in
-            var j = i + step
-            while all.indices.contains(j), !isSelectable(all[j]) { j += step }
-            if all.indices.contains(j) { selected = all[j] }
-            return .handled
+    private func handle(_ key: SettingsKey) {
+        switch key {
+        case .down: move(1)
+        case .up: move(-1)
+        case .left: change(-1)
+        case .right: change(1)
+        case .activate: activate()
+        case .delete: if selected == .models, let models, models.bytesOnDisk > 0 { models.delete() }
         }
-        switch (press.key, press.characters) {
-        case (.downArrow, _), (_, "j"): return move(1)
-        case (.upArrow, _), (_, "k"): return move(-1)
-        case (.leftArrow, _), (_, "h"): return change(-1)
-        case (.rightArrow, _), (_, "l"): return change(1)
-        case (.space, _), (.return, _): return activate()
-        case (.delete, _):
-            guard selected == .models, let models, models.bytesOnDisk > 0 else { return .ignored }
-            models.delete()
-            return .handled
-        default: return .ignored
-        }
+    }
+
+    private func move(_ step: Int) {
+        let all = rows
+        var j = (all.firstIndex(of: selected) ?? 0) + step
+        while all.indices.contains(j), !isSelectable(all[j]) { j += step }
+        if all.indices.contains(j) { selected = all[j] }
     }
 
     /// ←/→ on the quality picker step through the qualities; on a switch they turn it off/on.
-    private func change(_ step: Int) -> KeyPress.Result {
+    private func change(_ step: Int) {
         if selected == .quality {
             let q = SettingsFile.qualities, i = q.firstIndex(of: defaultQuality) ?? 0
             defaultQuality = q[min(max(i + step, 0), q.count - 1)]
-            return .handled
+            return
         }
-        guard let value = toggleValue(selected) else { return .ignored }
-        if value != (step > 0) { flip(selected) }
-        return .handled
+        if let value = toggleValue(selected), value != (step > 0) { flip(selected) }
     }
 
-    private func activate() -> KeyPress.Result {
+    private func activate() {
         switch selected {
         case .quality:
             let q = SettingsFile.qualities
             defaultQuality = q[((q.firstIndex(of: defaultQuality) ?? 0) + 1) % q.count]
         case .models:
-            guard let models, let action = modelsAction(models) else { return .ignored }
+            guard let models, let action = modelsAction(models) else { return }
             action()
         case .brave:
             editingBrave = true
         case .takeout:
-            guard store != nil else { return .ignored }
+            guard store != nil else { return }
             importing = .history
         case .subscriptions:
-            guard store != nil, subscriptions != nil else { return .ignored }
+            guard store != nil, subscriptions != nil else { return }
             importing = .subscriptions
+        case .headSetup:
+            calibrating = true
+        case .headReset:
+            confirmingReset = true
         default:
             flip(selected)
         }
-        return .handled
+    }
+
+    private var headGesturesOn: Bool { headGestures && head?.isCalibrated == true }
+
+    /// Switching head gestures on before they're set up opens the setup, which switches them on when it's done.
+    private func setHeadGestures(_ on: Bool) {
+        if on, head?.isCalibrated != true {
+            calibrating = head != nil
+        } else {
+            headGestures = on
+        }
     }
 
     private func toggleValue(_ row: Row) -> Bool? {
         switch row {
         case .opengl: openglPlayback
-        case .headGestures: headGestures
+        case .headGestures: headGesturesOn
         case .dearrowTitles: dearrowTitles
         case .dearrowThumbnails: dearrowThumbnails
         case .comments: showComments
@@ -289,7 +308,7 @@ struct SettingsView: View {
         guard isSelectable(row) else { return }
         switch row {
         case .opengl: openglPlayback.toggle()
-        case .headGestures: headGestures.toggle()
+        case .headGestures: setHeadGestures(!headGesturesOn)
         case .dearrowTitles: dearrowTitles.toggle()
         case .dearrowThumbnails: dearrowThumbnails.toggle()
         case .comments: showComments.toggle()
@@ -332,7 +351,7 @@ private struct ModelsRow: View {
                 Text("Download failed: \(e)").font(.caption).foregroundStyle(.red)
                 Button("Retry") { models.download() }.disabled(!enabled)
             case .absent:
-                Text(enabled ? "Not downloaded" : "Not downloaded (turn on to download)").font(.caption)
+                Text(enabled ? "Not downloaded" : "Not downloaded").font(.caption)
                 if enabled { Button("Download") { models.download() } }
             }
             Spacer()

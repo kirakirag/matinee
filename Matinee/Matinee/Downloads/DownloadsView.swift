@@ -26,7 +26,7 @@ struct DownloadsView: View {
         .overlay {
             if manager.items.isEmpty {
                 ContentUnavailableView("No downloads", systemImage: "arrow.down.circle",
-                                       description: Text("Press S on a video to save it for offline viewing."))
+                                       description: Text("S to save a video"))
             }
         }
         .onChange(of: nav.deleteRequest) {

@@ -29,6 +29,8 @@ struct MatineeApp: App {
     @State private var forYou: ForYouModel?
     /// "Local AI ranking"'s two models, for For You and Settings.
     @State private var localModels: LocalModels
+    /// Nil in the key bench, which touches neither the keychain nor the AirPods.
+    @State private var headGestures: HeadGestureService?
     /// ~/.config/matinee/settings.json, kept the same as the settings both ways.
     @State private var settingsSync: SettingsSync?
 
@@ -118,6 +120,9 @@ struct MatineeApp: App {
         if !KeyBench.isRequested, !ModelSelfTest.isRequested { forYou?.startBackgroundRanking() }
         if LocalModels.isEnabled, !ModelSelfTest.isRequested { localModels.download() }   // resumes an interrupted one
         _localModels = State(initialValue: localModels)
+        let headGestures = KeyBench.isRequested ? nil : HeadGestureService()
+        player?.headGestures = headGestures
+        _headGestures = State(initialValue: headGestures)
         if let related { player?.loadRelated = { try await related.related($0) } }
         _forYou = State(initialValue: forYou)
         // A video opened alone plays its channel playlist once membership is confirmed. The bench stays offline.
@@ -150,6 +155,7 @@ struct MatineeApp: App {
                 .environment(downloads)
                 .environment(subscriptions)
                 .environment(localModels)
+                .environment(headGestures)
                 .frame(minHeight: 500)
                 .background(WindowMinimumWidth(width: 760))
                 .task {
@@ -158,6 +164,7 @@ struct MatineeApp: App {
                     if KeyBench.isRequested { await KeyBench(nav: nav).run() }
                     if let id = WorkerSelfTest.requestedID { await WorkerSelfTest.run(id) }
                     if MPVSelfTest.isRequested { MPVSelfTest.run() }
+                    if HeadGestureSelfTest.isRequested { HeadGestureSelfTest.run() }
                     if ModelSelfTest.isRequested { await ModelSelfTest.run(localModels) }
                 }
         }

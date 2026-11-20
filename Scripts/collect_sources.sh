@@ -1,13 +1,13 @@
 #!/bin/bash
 # Writes dist/Matinee-sources.tar: the source code of every GPL or LGPL Homebrew library bundled in Mpv.bundle (ffmpeg's
 # included),
-# plus mpv v0.41.0 with Matinee's patches. Attach it to each GitHub release next to Matinee.zip; the GPL and LGPL
+# plus mpv v0.42.0 with Matinee's patches. Attach it to each GitHub release next to Matinee.zip; the GPL and LGPL
 # ask for the source of the binaries we distribute. Run it after the bundle scripts, on the Mac that built the release.
 # Usage: Scripts/collect_sources.sh   (downloads source archives; installs and builds nothing)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-MPV_VERSION=0.41.0
+MPV_VERSION=0.42.0
 LIB=Matinee/Matinee/Mpv.bundle/lib
 [ -d "$LIB" ] || { echo "$LIB is missing: run Scripts/build_mpv.sh first." >&2; exit 1; }
 

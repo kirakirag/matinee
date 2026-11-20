@@ -7,7 +7,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-MPV_VERSION=0.41.0
+MPV_VERSION=0.42.0
 MPV_ROOT=/opt/homebrew/opt/mpv
 OUT=Matinee/Matinee/Mpv.bundle/lib
 

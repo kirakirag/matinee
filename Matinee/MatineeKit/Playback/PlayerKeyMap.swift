@@ -1,7 +1,7 @@
 import Foundation
 
 public enum PlayerCommand: Equatable, Sendable {
-    case togglePause, seek(Double), volume(Int), speedStep(Int), fullscreen, exitFullscreen, close, next, previous, openChannel, quality, subtitles, audio, undoSkip, saveOffline, toggleComments, toggleSubscription, stop
+    case togglePause, seek(Double), volume(Int), speedStep(Int), fullscreen, exitFullscreen, close, next, previous, openChannel, quality, subtitles, audio, undoSkip, saveOffline, toggleComments, toggleSubscription, stop, undoGesture
 }
 
 public enum SpecialKey: Sendable { case left, right, up, down, escape, space }

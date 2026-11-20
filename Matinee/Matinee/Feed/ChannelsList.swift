@@ -47,7 +47,7 @@ struct ChannelsList: View {
         .overlay {
             if subscriptions.isLoaded, subscriptions.channels.isEmpty {
                 ContentUnavailableView("No subscriptions", systemImage: "person.2",
-                                       description: Text("Press D on a video or channel to subscribe."))
+                                       description: Text("D to subscribe"))
             } else if !query.isEmpty, rows.isEmpty {
                 ContentUnavailableView.search(text: query)
             }

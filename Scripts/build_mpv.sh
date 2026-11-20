@@ -1,13 +1,13 @@
 #!/bin/bash
-# Builds libmpv with Matinee's patches (Scripts/mpv/*.patch; 0002 lets mpv's Metal/MoltenVK output draw into the
+# Builds libmpv with Matinee's patches (Scripts/mpv/*.patch; 0001 lets mpv's Metal/MoltenVK output draw into the
 # app's own view through --wid) and bundles it with MoltenVK into Matinee/Matinee/Mpv.bundle, replacing what
 # bundle_mpv.sh put there. Run Scripts/bundle_ffmpeg.sh again afterwards: it links the bundled libraries.
 # Usage: Scripts/build_mpv.sh   (needs Homebrew packages; it lists missing ones and installs nothing)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-MPV_VERSION=0.41.0
-MPV_COMMIT=41f6a645068483470267271e1d09966ca3b9f413   # tag v0.41.0
+MPV_VERSION=0.42.0
+MPV_COMMIT=b0841e8c4d156b8403dc1876c4cbd9011eb583f3   # tag v0.42.0
 # Outside the checkout: libmpv records its source paths (Swift code imports mpv's C headers), and a fixed neutral
 # folder keeps the builder's home folder out of the binary.
 WORK=/tmp/matinee-mpv

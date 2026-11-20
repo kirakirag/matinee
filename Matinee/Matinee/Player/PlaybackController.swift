@@ -32,12 +32,38 @@ import os
     @ObservationIgnored private var noticeTask: Task<Void, Never>?
     /// The notice is a skip's: a shake undoes it, a nod keeps it.
     @ObservationIgnored private var skipNoticeShown = false
-    /// AirPods nods, shakes and tilts (Settings' "Head gestures"), acted on while the player is open and Matinee is in
-    /// front.
-    @ObservationIgnored private let headTracker = HeadTracker()
-    @ObservationIgnored private var headTrackingStop: Task<Void, Never>?
-    private static let headTrackingLinger = Duration.seconds(30)
-    static var headGesturesEnabled: Bool { UserDefaults.standard.bool(forKey: "headGestures") }
+    /// Set by the app: AirPods nods, shakes and tilts (Settings' "Head gestures"), acted on while the player is open
+    /// and Matinee is in front.
+    @ObservationIgnored var headGestures: HeadGestureService? {
+        didSet {
+            headGestures?.onOutput = { [weak self] in self?.headOutput($0) }
+            syncHeadTracking()
+        }
+    }
+    /// What the last head gesture did, while ⌘Z can still take it back.
+    private struct GestureAction {
+        enum Effect { case pause, seek(from: Double), next(from: Item, inQueue: Bool) }
+        var effect: Effect
+        /// The nod or shake and its features, to learn from; nil for a tilt.
+        var learnt: (label: GestureLabel, features: [Double])?
+        var tiltLeft = false
+        /// How many seeks a tilt's hold has made.
+        var seeks = 1
+        var at = ContinuousClock.now
+    }
+    @ObservationIgnored private var lastGesture: GestureAction?
+    @ObservationIgnored private var gestureSettle: Task<Void, Never>?
+    /// A movement that was nearly a gesture: the key for the same action right after it teaches it.
+    @ObservationIgnored private var nearMiss: (label: GestureLabel, features: [Double], at: ContinuousClock.Instant)?
+    /// A tilt that fell short: the arrow key the same way right after it teaches a shallower tilt.
+    @ObservationIgnored private var tiltNearMiss: (left: Bool, at: ContinuousClock.Instant)?
+    /// ⌘Z takes a gesture back this long; left standing that long, it is learnt as meant.
+    private static let gestureUndoWindow = Duration.seconds(8)
+    /// The opposite key this soon after a gesture means the gesture wasn't meant.
+    private static let gestureReversalWindow = Duration.seconds(2)
+    private static let nearMissWindow = Duration.milliseconds(2500)
+    /// Tilt seeks this close together are one hold, taken back together.
+    private static let tiltRunGap = Duration.milliseconds(1500)
     @ObservationIgnored private let player: MPVPlayer
     @ObservationIgnored private var session = PlaybackSession()
     @ObservationIgnored private var openTask: Task<Void, Never>?
@@ -226,10 +252,6 @@ import os
             MainActor.assumeIsolated { self?.isFullscreen = false }
         }
         nowPlaying = NowPlaying(player: self)
-        headTracker.onGesture = { [weak self] in self?.headGesture($0) }
-        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.syncHeadTracking() }
-        }
     }
 
     /// Opens one video and clears any queue.
@@ -358,6 +380,9 @@ import os
         player.pause()
         isPresented = false
         isMini = false
+        lastGesture = nil
+        gestureSettle?.cancel()
+        nearMiss = nil
         syncHeadTracking()
         unloadTask?.cancel()
         unloadTask = Task { [weak self] in
@@ -391,7 +416,13 @@ import os
         syncHeadTracking()
     }
 
+    /// A command from the keyboard, a button or the media keys.
     func handle(_ c: PlayerCommand) {
+        learnFromManual(c)
+        act(c)
+    }
+
+    private func act(_ c: PlayerCommand) {
         commandCount += 1
         switch c {
         case .close: minimize()
@@ -426,6 +457,7 @@ import os
                 notice = nil
                 skipNoticeShown = false
             }
+        case .undoGesture: undoGesture()
         default: player.perform(c)
         }
     }
@@ -922,7 +954,7 @@ import os
     private func skip(_ segment: SponsorSegment) {
         seek(to: segment.end)
         let name = SponsorBlock.categories.first { $0.id == segment.category }?.title ?? segment.category
-        showNotice("Skipped \(name) · \(headTracker.isRunning ? "U or shake" : "U") to undo")
+        showNotice("Skipped \(name) · \(headGestures?.isListening == true ? "U or shake" : "U") to undo")
         skipNoticeShown = true
     }
 
@@ -941,41 +973,136 @@ import os
 
     // MARK: Head gestures
 
-    /// Starting and stopping the AirPods' motion stream switches what they send over Bluetooth, and doing it often
-    /// can drop their audio in every app. So it runs as long as the player is open, in front or not, and stops a
-    /// while after the player closes (at once when the setting is turned off).
     private func syncHeadTracking() {
-        if !Self.headGesturesEnabled || item != nil && (isPresented || isMini) {
-            headTrackingStop?.cancel()
-            headTrackingStop = nil
-        }
-        guard Self.headGesturesEnabled else { return headTracker.stop() }
-        if item != nil, isPresented || isMini {
-            headTracker.start()
-        } else if headTracker.isRunning, headTrackingStop == nil {
-            headTrackingStop = Task { [weak self] in
-                try? await Task.sleep(for: Self.headTrackingLinger)
-                guard !Task.isCancelled else { return }
-                self?.headTrackingStop = nil
-                self?.headTracker.stop()
-            }
-        }
+        headGestures?.playerChanged(open: item != nil && (isPresented || isMini))
+    }
+
+    private var hasNext: Bool {
+        queue.map { $0.position + 1 < $0.count } ?? (Self.upNextEnabled && !upNext.isEmpty)
     }
 
     /// Nod plays or pauses, shake goes to the next video, a held tilt seeks and repeats, faster the longer it's held.
-    /// While a skip's notice is up, a shake undoes the skip and a nod keeps it.
-    private func headGesture(_ g: HeadGesture) {
-        // Defaults can change before NSApp exists (launch); nodding along in another app does nothing.
+    /// While a skip's notice is up, a shake undoes the skip and a nod keeps it. ⌘Z takes a gesture back for a few
+    /// seconds; what happens after a gesture is what the recogniser learns from.
+    private func headOutput(_ output: HeadGestureRecognizer.Output) {
+        // Nodding along in another app does nothing.
         guard isPresented || isMini, NSApp?.isActive == true else { return }
-        switch g {
-        case .nod where skipNoticeShown:
-            noticeTask?.cancel()
-            notice = nil
-            skipNoticeShown = false
-        case .shake where skipNoticeShown: handle(.undoSkip)
-        case .nod: handle(.togglePause)
-        case .shake: handle(.next)
-        case .tiltLeft, .tiltRight: if let s = g.seekSeconds { handle(.seek(s)) }
+        switch output {
+        case .nearMiss(let label, let features):
+            nearMiss = (label, features, .now)
+        case .tiltNearMiss(let left):
+            tiltNearMiss = (left, .now)
+        case .gesture(.nod, let features):
+            if skipNoticeShown {
+                noticeTask?.cancel()
+                notice = nil
+                skipNoticeShown = false
+                return
+            }
+            let wasPaused = isPaused
+            act(.togglePause)
+            remember(GestureAction(effect: .pause, learnt: features.map { (.nod, $0) }))
+            showNotice("Nod: \(wasPaused ? "playing" : "paused") · ⌘Z to undo")
+        case .gesture(.shake, let features):
+            if skipNoticeShown { return act(.undoSkip) }
+            guard let from = item, hasNext else { return }
+            let inQueue = queue != nil
+            act(.next)
+            remember(GestureAction(effect: .next(from: from, inQueue: inQueue), learnt: features.map { (.shake, $0) }))
+            showNotice("Shake: next video · ⌘Z to undo")
+        case .gesture(let tilt, _):
+            guard let seconds = tilt.seekSeconds else { return }
+            let left = seconds < 0
+            if let last = lastGesture, case .seek = last.effect, last.tiltLeft == left,
+               ContinuousClock.now - last.at < Self.tiltRunGap {
+                // The same hold: one ⌘Z takes all of it back.
+                lastGesture?.at = .now
+                lastGesture?.seeks += 1
+                settleGestureLater()
+            } else {
+                remember(GestureAction(effect: .seek(from: position), tiltLeft: left))
+            }
+            act(.seek(seconds))
+            showNotice("Tilt: \(left ? "back" : "forward") · ⌘Z to undo")
+        }
+    }
+
+    private func remember(_ action: GestureAction) {
+        lastGesture = action
+        nearMiss = nil
+        tiltNearMiss = nil
+        settleGestureLater()
+    }
+
+    /// A gesture left standing is learnt as one that was meant.
+    private func settleGestureLater() {
+        gestureSettle?.cancel()
+        gestureSettle = Task { [weak self] in
+            try? await Task.sleep(for: Self.gestureUndoWindow)
+            guard !Task.isCancelled, let self, let g = self.lastGesture else { return }
+            self.lastGesture = nil
+            if let l = g.learnt { self.headGestures?.learn { $0.learn(l.features, as: l.label, source: .confirmed) } }
+        }
+    }
+
+    /// ⌘Z: puts back what the last gesture changed and teaches the recogniser it wasn't meant.
+    private func undoGesture() {
+        guard let g = lastGesture else { return }
+        lastGesture = nil
+        gestureSettle?.cancel()
+        switch g.effect {
+        case .pause: player.perform(.togglePause)
+        case .seek(let from): seek(to: from)
+        case .next(var from, let inQueue):
+            if inQueue, queue != nil {
+                advance { $0.previous() }
+            } else {
+                from.startAt = nil   // resume where it was left
+                open(from)
+            }
+        }
+        unlearn(g)
+        showNotice("Undone")
+    }
+
+    /// Learns that `g` wasn't meant. False when there was nothing to learn: a long tilt hold was deliberate, even if
+    /// it went too far.
+    @discardableResult private func unlearn(_ g: GestureAction) -> Bool {
+        if let l = g.learnt {
+            headGestures?.learn { $0.learn(l.features, as: .none, source: .undone) }
+            return true
+        }
+        guard g.seeks <= 2 else { return false }
+        headGestures?.learn { $0.tiltUndone(left: g.tiltLeft) }
+        return true
+    }
+
+    /// What the keyboard does right after a gesture, or a near miss, says whether it was meant: the opposite key
+    /// straight after a gesture takes it back by hand, and the same action's key after a near miss is what the
+    /// movement was for.
+    private func learnFromManual(_ c: PlayerCommand) {
+        let now = ContinuousClock.now
+        if let g = lastGesture, now - g.at < Self.gestureReversalWindow {
+            let reversed = switch (g.effect, c) {
+            case (.pause, .togglePause), (.next, .previous): true
+            case (.seek, .seek(let d)): (d < 0) != g.tiltLeft
+            default: false
+            }
+            if reversed {
+                lastGesture = nil
+                gestureSettle?.cancel()
+                unlearn(g)
+                return
+            }
+        }
+        if let m = nearMiss, now - m.at < Self.nearMissWindow,
+           (m.label == .nod && c == .togglePause) || (m.label == .shake && c == .next) {
+            nearMiss = nil
+            headGestures?.learn { $0.learn(m.features, as: m.label, source: .corrected) }
+        }
+        if let m = tiltNearMiss, now - m.at < Self.nearMissWindow, case .seek(let d) = c, (d < 0) == m.left {
+            tiltNearMiss = nil
+            headGestures?.learn { $0.tiltCorrected(left: m.left) }
         }
     }
 

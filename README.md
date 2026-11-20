@@ -34,7 +34,7 @@ Some other things Matinee does:
 
 - SponsorBlock skips sponsor and self-promotion segments, and U undoes the last skip.
 - DeArrow replaces clickbait titles and thumbnails with community ones. When DeArrow has no thumbnail, Matinee shows a frame from the middle of the video, never the uploader's designed thumbnail.
-- With AirPods Pro, Max, or 3rd generation or later, head gestures can control the player: nod to play or pause, shake for the next video, hold a tilt to seek, faster the longer you hold it. After a SponsorBlock skip, a shake undoes it. Off by default; turn it on in Settings. The gesture rules come from [MousePods](https://github.com/starman-tech/mousepods) by Matteo Gaudioso.
+- With AirPods Pro, Max, or 3rd generation or later, head gestures can control the player: nod to play or pause, shake for the next video, hold a tilt to seek, faster the longer you hold it. After a SponsorBlock skip, a shake undoes it. Off by default; turning it on in Settings starts a one-minute setup in which Matinee learns how you make each gesture, and what your everyday movements look like, so it reacts to the first and not the second. It keeps learning afterwards: ⌘Z undoes a gesture you didn't mean and teaches Matinee to ignore that movement, and pressing the key yourself right after a gesture it missed teaches it that one. What it learns (a description of each movement, never the recorded motion) stays on your Mac, encrypted with a key in your keychain, and Settings can reset it. The tilt's hold rules come from [MousePods](https://github.com/starman-tech/mousepods) by Matteo Gaudioso.
 - The player can show a video's top comments in a side panel. This is off by default and read-only.
 - Some videos won't play without a YouTube account (age-restricted, members-only, or "confirm you're not a bot"). For those, the player says so and offers to open the video in Brave, in the browser profile you choose in Settings.
 
@@ -98,6 +98,7 @@ In the player:
 | Return | Open in Brave, when a video needs a signed-in account |
 | Escape | Leave fullscreen, then shrink to the mini player |
 | ⌘W | Stop the video, also from the mini player |
+| ⌘Z | Undo what the last head gesture did |
 
 Leaving the player (Escape, C, another section) keeps the video playing in a corner while you browse. Click the mini player or press ⌘P to bring it back; its ✕ or ⌘W stops the video. With no video playing, ⌘W closes the window.
 

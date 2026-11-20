@@ -12,11 +12,11 @@ import MatineeKit
 final class MPVPlayer {
     /// The options every mpv handle in the app is created with (the renderer adds its own).
     static let options: [String: String] = [
-        "hwdec": "videotoolbox", "ytdl": "no", "cache": "yes",
+        "hwdec": "videotoolbox", "cache": "yes",
         // Enough to keep most of a video (1 GiB is ~7 min of 4K VP9 at 20 Mbit/s) without letting two long 4K
         // videos hold 8 GiB each. A seek past what's kept refetches through RangedStream, which is fast.
         "demuxer-max-bytes": "1GiB", "demuxer-max-back-bytes": "512MiB",
-        "keep-open": "yes", "terminal": "no", "input-default-bindings": "no", "input-vo-keyboard": "no", "osc": "no",
+        "keep-open": "yes", "terminal": "no", "input-default-bindings": "no", "input-vo-keyboard": "no",
         // Streams mpv opens itself (live HLS; videos go through RangedStream and URLSession) are fetched by FFmpeg,
         // which mpv tells not to check certificates unless asked. /etc/ssl/cert.pem is macOS's system CA bundle.
         "tls-verify": "yes", "tls-ca-file": "/etc/ssl/cert.pem",
@@ -159,7 +159,7 @@ final class MPVPlayer {
         case .volume(let v): command(["add", "volume", String(v)])
         case .speedStep(let n):
             set(speed: min(max(speed + Double(n) * 0.25, 0.25), 4.0))
-        case .fullscreen, .exitFullscreen, .close, .next, .previous, .openChannel, .quality, .subtitles, .audio, .undoSkip, .saveOffline, .toggleComments, .toggleSubscription, .stop: break
+        case .fullscreen, .exitFullscreen, .close, .next, .previous, .openChannel, .quality, .subtitles, .audio, .undoSkip, .saveOffline, .toggleComments, .toggleSubscription, .stop, .undoGesture: break
         }
     }
 

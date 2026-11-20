@@ -7,7 +7,7 @@ and icon, or taking input. Without --wid nothing changes.
 
 ---
 diff --git a/video/out/mac/common.swift b/video/out/mac/common.swift
-index 77557bb..f90c9cf 100644
+index 07b9f83..89908a4 100644
 --- a/video/out/mac/common.swift
 +++ b/video/out/mac/common.swift
 @@ -188,7 +188,7 @@ class Common: NSObject {
@@ -30,7 +30,7 @@ index 77557bb..f90c9cf 100644
                                      getTargetScreen(forFullscreen: false) ??
                                      NSScreen.main
 diff --git a/video/out/mac/view.swift b/video/out/mac/view.swift
-index 8c9c006..a159475 100644
+index f8cc625..968cbbd 100644
 --- a/video/out/mac/view.swift
 +++ b/video/out/mac/view.swift
 @@ -26,7 +26,43 @@ class View: NSView, CALayerDelegate {
@@ -76,10 +76,10 @@ index 8c9c006..a159475 100644
 +        common.windowDidChangeBackingProperties()
 +    }
  
-     init(frame: NSRect, common com: Common) {
-         common = com
+     override var isOpaque: Bool {
+         if let metalLayer = layer as? MetalLayer {
 diff --git a/video/out/mac_common.swift b/video/out/mac_common.swift
-index 45f922d..0b05f5c 100644
+index e2e9dd1..cca03e2 100644
 --- a/video/out/mac_common.swift
 +++ b/video/out/mac_common.swift
 @@ -21,6 +21,9 @@ class MacCommon: Common {
@@ -170,7 +170,7 @@ index 45f922d..0b05f5c 100644
                 option.vo.force_render ||
                 needsInitialDraw
      }
-@@ -159,6 +204,7 @@ class MacCommon: Common {
+@@ -167,6 +212,7 @@ class MacCommon: Common {
      }
  
      override func windowDidResize() {
@@ -178,7 +178,7 @@ index 45f922d..0b05f5c 100644
          flagEvents(VO_EVENT_RESIZE | VO_EVENT_EXPOSE)
      }
  
-@@ -167,7 +213,7 @@ class MacCommon: Common {
+@@ -175,7 +221,7 @@ class MacCommon: Common {
      }
  
      override func windowDidChangeBackingProperties() {
@@ -188,7 +188,7 @@ index 45f922d..0b05f5c 100644
      }
  
 diff --git a/video/out/vulkan/context_mac.m b/video/out/vulkan/context_mac.m
-index 281a4bd..d92ce84 100644
+index 559e361..70a7ee6 100644
 --- a/video/out/vulkan/context_mac.m
 +++ b/video/out/vulkan/context_mac.m
 @@ -114,10 +114,9 @@ static bool resize(struct ra_ctx *ctx)

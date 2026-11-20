@@ -41,7 +41,7 @@ struct ForYouView: View {
         .overlay {
             if !model.hasHistory {
                 ContentUnavailableView("Nothing to go on yet", systemImage: "sparkles",
-                                       description: Text("Watch a few videos and their suggestions are ranked here."))
+                                       description: Text("Watch a few videos first."))
             } else if let error = model.error {
                 ContentUnavailableView("No recommendations", systemImage: "exclamationmark.triangle", description: Text(error))
             } else if model.rows.isEmpty, model.isLoading {

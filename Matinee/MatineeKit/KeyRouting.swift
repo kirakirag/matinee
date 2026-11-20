@@ -1,5 +1,6 @@
 public enum KeyRoute: Equatable, Sendable {
-    case global(GlobalCommand), player(PlayerCommand), qualityMenu(QualityMenuKey), panel(PanelKey), openBrave, pop
+    case global(GlobalCommand), player(PlayerCommand), qualityMenu(QualityMenuKey), panel(PanelKey), settings(SettingsKey)
+    case openBrave, pop
     /// Handled with no effect (keeps the hidden list from moving under the player).
     case swallow
     /// Not ours: the event goes on to the focused view.
@@ -12,10 +13,13 @@ public enum QualityMenuKey: Equatable, Sendable { case up, down, apply, close }
 /// Comments, Escape closes it.
 public enum PanelKey: Equatable, Sendable { case up, down, activate, switchTab, close }
 
+/// Settings: j/k or ↑/↓ move between rows, h/l or ←/→ change a value, Space or Return flips or activates, ⌫ deletes.
+public enum SettingsKey: Equatable, Sendable { case up, down, left, right, activate, delete }
+
 public enum KeyRouting {
     /// Decides what the window-level key monitor does with a key press, in priority order:
-    /// global ⌘-chords, Escape popping a pushed page, Q W E R T Y picking a section, then player keys while the
-    /// player is up.
+    /// global ⌘-chords, Escape popping a pushed page, Q W E R T Y picking a section, Settings' keys while it shows,
+    /// then player keys while the player is up.
     /// While the player's quality list is open, it takes ↑/↓/Return/Escape and no other player key acts.
     /// While its side panel is open, the panel takes ↑/↓/Return/Tab/Escape; the other player keys still act.
     /// Otherwise Escape in fullscreen leaves fullscreen, and only the next one closes the player.
@@ -23,7 +27,7 @@ public enum KeyRouting {
     public static func route(chord: KeyChord, keyCode: UInt16, special: SpecialKey?, playerPresented: Bool,
                              textFieldFocused: Bool, hasRoute: Bool, playerNeedsAccount: Bool,
                              qualityMenuOpen: Bool, fullscreen: Bool, panelOpen: Bool = false,
-                             playerMini: Bool = false) -> KeyRoute {
+                             playerMini: Bool = false, settingsShown: Bool = false) -> KeyRoute {
         // The player covers every text field, so one still focused underneath must not take its keys.
         let textFieldFocused = textFieldFocused && !playerPresented
         // ⌘⌫ reports its character inconsistently, so go by the key code.
@@ -38,6 +42,11 @@ public enum KeyRouting {
         if chord == KeyChord(key: "w", command: true), playerPresented || playerMini {
             return .player(.stop)
         }
+        // ⌘Z takes back what the last head gesture did; a text field being typed in (beside the mini player) keeps
+        // its own undo.
+        if chord == KeyChord(key: "z", command: true), playerPresented || (playerMini && !textFieldFocused) {
+            return .player(.undoGesture)
+        }
         let plain = !chord.command && !chord.shift && !chord.option && !chord.control
         if special == .escape, plain, !textFieldFocused, !playerPresented {
             return hasRoute ? .pop : .pass
@@ -47,6 +56,10 @@ public enum KeyRouting {
         if plain, !textFieldFocused, !playerPresented, let i = Array("qwerty").firstIndex(of: Character(chord.key)),
            let section = AppSection(rawValue: i) {
             return .global(.section(section))
+        }
+        // Settings is a form: nothing in it holds keyboard focus the way a list does, so its keys come from here.
+        if settingsShown, plain, !textFieldFocused, !playerPresented, let key = settingsKey(chord.key, keyCode: keyCode) {
+            return .settings(key)
         }
         guard playerPresented, !textFieldFocused, !chord.command, !chord.option, !chord.control else { return .pass }
         if qualityMenuOpen {
@@ -72,5 +85,17 @@ public enum KeyRouting {
         if special == .escape, !chord.shift, fullscreen { return .player(.exitFullscreen) }
         if keyCode == 36 || keyCode == 76, playerNeedsAccount { return .openBrave }
         return PlayerKeyMap.command(chord, special: special).map(KeyRoute.player) ?? .swallow
+    }
+
+    private static func settingsKey(_ key: String, keyCode: UInt16) -> SettingsKey? {
+        switch (keyCode, key) {
+        case (125, _), (_, "j"): .down
+        case (126, _), (_, "k"): .up
+        case (123, _), (_, "h"): .left
+        case (124, _), (_, "l"): .right
+        case (49, _), (36, _), (76, _): .activate   // Space, Return, keypad Enter
+        case (51, _): .delete
+        default: nil
+        }
     }
 }
