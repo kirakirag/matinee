@@ -22,11 +22,10 @@ public enum KeyRouting {
     /// then player keys while the player is up.
     /// While the player's quality list is open, it takes ↑/↓/Return/Escape and no other player key acts.
     /// While its side panel is open, the panel takes ↑/↓/Return/Tab/Escape; the other player keys still act.
-    /// Otherwise Escape in fullscreen leaves fullscreen, and only the next one closes the player.
     /// While the player is up, a focused text field is ignored and ⌘⌫ does nothing.
     public static func route(chord: KeyChord, keyCode: UInt16, special: SpecialKey?, playerPresented: Bool,
                              textFieldFocused: Bool, hasRoute: Bool, playerNeedsAccount: Bool,
-                             qualityMenuOpen: Bool, fullscreen: Bool, panelOpen: Bool = false,
+                             qualityMenuOpen: Bool, panelOpen: Bool = false,
                              playerMini: Bool = false, settingsShown: Bool = false) -> KeyRoute {
         // The player covers every text field, so one still focused underneath must not take its keys.
         let textFieldFocused = textFieldFocused && !playerPresented
@@ -82,7 +81,6 @@ public enum KeyRouting {
             default: break
             }
         }
-        if special == .escape, !chord.shift, fullscreen { return .player(.exitFullscreen) }
         if keyCode == 36 || keyCode == 76, playerNeedsAccount { return .openBrave }
         return PlayerKeyMap.command(chord, special: special).map(KeyRoute.player) ?? .swallow
     }

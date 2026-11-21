@@ -3,10 +3,10 @@ import MatineeKit
 
 private func route(_ key: String, code: UInt16 = 0, command: Bool = false, shift: Bool = false, special: SpecialKey? = nil,
                    player: Bool = false, field: Bool = false, hasRoute: Bool = false, needsAccount: Bool = false,
-                   qualityMenu: Bool = false, fullscreen: Bool = false, panel: Bool = false, settings: Bool = false) -> KeyRoute {
+                   qualityMenu: Bool = false, panel: Bool = false, settings: Bool = false) -> KeyRoute {
     KeyRouting.route(chord: KeyChord(key: key, command: command, shift: shift), keyCode: code, special: special,
                      playerPresented: player, textFieldFocused: field, hasRoute: hasRoute, playerNeedsAccount: needsAccount,
-                     qualityMenuOpen: qualityMenu, fullscreen: fullscreen, panelOpen: panel, settingsShown: settings)
+                     qualityMenuOpen: qualityMenu, panelOpen: panel, settingsShown: settings)
 }
 
 @Test func settingsTakesItsKeysWhileItShows() {
@@ -33,13 +33,12 @@ private func route(_ key: String, code: UInt16 = 0, command: Bool = false, shift
 
 @Test func cmdWStopsTheVideoFullOrMini() {
     let stop = KeyChord(key: "w", command: true)
-    func r(player: Bool, mini: Bool, fullscreen: Bool = false) -> KeyRoute {
+    func r(player: Bool, mini: Bool) -> KeyRoute {
         KeyRouting.route(chord: stop, keyCode: 13, special: nil, playerPresented: player, textFieldFocused: false,
-                         hasRoute: true, playerNeedsAccount: false, qualityMenuOpen: false, fullscreen: fullscreen,
+                         hasRoute: true, playerNeedsAccount: false, qualityMenuOpen: false,
                          playerMini: mini)
     }
     #expect(r(player: true, mini: false) == .player(.stop))
-    #expect(r(player: true, mini: false, fullscreen: true) == .player(.stop))
     #expect(r(player: false, mini: true) == .player(.stop))
     #expect(r(player: false, mini: false) == .pass)
 }
@@ -48,7 +47,7 @@ private func route(_ key: String, code: UInt16 = 0, command: Bool = false, shift
     let undo = KeyChord(key: "z", command: true)
     func r(player: Bool, mini: Bool, field: Bool = false) -> KeyRoute {
         KeyRouting.route(chord: undo, keyCode: 6, special: nil, playerPresented: player, textFieldFocused: field,
-                         hasRoute: true, playerNeedsAccount: false, qualityMenuOpen: false, fullscreen: false,
+                         hasRoute: true, playerNeedsAccount: false, qualityMenuOpen: false,
                          playerMini: mini)
     }
     #expect(r(player: true, mini: false) == .player(.undoGesture))
@@ -56,11 +55,6 @@ private func route(_ key: String, code: UInt16 = 0, command: Bool = false, shift
     #expect(r(player: false, mini: true) == .player(.undoGesture))
     #expect(r(player: false, mini: true, field: true) == .pass)
     #expect(r(player: false, mini: false) == .pass)
-}
-
-@Test func escapeInFullscreenLeavesFullscreen() {
-    #expect(route("\u{1b}", code: 53, special: .escape, player: true, fullscreen: true) == .player(.exitFullscreen))
-    #expect(route("\u{1b}", code: 53, special: .escape, player: true, qualityMenu: true, fullscreen: true) == .qualityMenu(.close))
 }
 
 @Test func escapeInTextFieldPasses() {
@@ -117,7 +111,6 @@ private func route(_ key: String, code: UInt16 = 0, command: Bool = false, shift
 @Test func playerKeysWinOverAHiddenFocusedTextField() {
     #expect(route(" ", code: 49, special: .space, player: true, field: true) == .player(.togglePause))
     #expect(route("\u{1b}", code: 53, special: .escape, player: true, field: true) == .player(.close))
-    #expect(route("\u{1b}", code: 53, special: .escape, player: true, field: true, fullscreen: true) == .player(.exitFullscreen))
     #expect(route("v", command: true, player: true, field: true) == .global(.paste))
     #expect(route("c", command: true, player: true, field: true) == .global(.copyLink))
 }
@@ -146,7 +139,6 @@ private func route(_ key: String, code: UInt16 = 0, command: Bool = false, shift
     #expect(route("\r", code: 36, player: true, panel: true) == .panel(.activate))
     #expect(route("\t", code: 48, player: true, panel: true) == .panel(.switchTab))
     #expect(route("", special: .escape, player: true, panel: true) == .panel(.close))
-    #expect(route("", special: .escape, player: true, fullscreen: true, panel: true) == .panel(.close))
     // Everything else is still the player's.
     #expect(route("", special: .left, player: true, panel: true) == .player(.seek(-5)))
     #expect(route("o", player: true, panel: true) == .player(.toggleComments))

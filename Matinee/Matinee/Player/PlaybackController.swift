@@ -428,7 +428,6 @@ import os
         case .close: minimize()
         case .stop: dismiss()
         case .fullscreen: NSApp.keyWindow?.toggleFullScreen(nil)
-        case .exitFullscreen: leaveFullscreen()
         case .next:
             if queue == nil { playUpNext() } else { advance { $0.next() } }
         case .previous: advance { $0.previous() }

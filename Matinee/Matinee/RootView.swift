@@ -25,6 +25,7 @@ struct RootView: View {
                     SectionStack(section: s, root: { tab(s) }, page: { destination($0, in: s) })
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .safeAreaInset(edge: .top, spacing: 0) { NowPlayingBanner() }
+                        .ignoresSafeArea(.container, edges: .top)   // up into the hidden title bar
                 } label: {
                     Label { Text(s.title) } icon: { Image(nsImage: sidebarIcons[s]!) }
                 }
@@ -34,15 +35,11 @@ struct RootView: View {
         // Always in the window (PlayerView hides itself when dismissed); this body reads nothing from the player.
         .overlay { if let player { PlayerView(player: player) } }
         .overlay(alignment: .bottom) { NoticeView() }
-        .modifier(FullscreenToolbar())
+        // No title bar or toolbar: the sidebar runs to the top of the window, under its buttons.
+        .toolbarVisibility(.hidden, for: .windowToolbar)
+        .tabViewSidebarBottomBar { DownloadsIndicator() }
         .onAppear { nav.installKeyMonitor() }
         .onChange(of: recommendations) { _, on in if !on, nav.section == .forYou { nav.section = .subscriptions } }
-        // One toolbar for every tab, and it must not read nav.section: anything it reads from the
-        // current section makes SwiftUI rebuild the window toolbar on every switch (~20 ms each).
-        .toolbar {
-            DownloadsIndicator()
-            Button { nav.perform(.refresh) } label: { Label("Refresh", systemImage: "arrow.clockwise") }
-        }
     }
 
     @ViewBuilder private func destination(_ route: Route, in section: AppSection) -> some View {
@@ -81,15 +78,6 @@ struct RootView: View {
             ContentUnavailableView(section.title, systemImage: section.symbol,
                                    description: Text("Coming in a later build"))
         }
-    }
-}
-
-/// Hides the window toolbar while the player is up in fullscreen. A modifier, so RootView's body doesn't read the player.
-private struct FullscreenToolbar: ViewModifier {
-    @Environment(PlaybackController.self) private var player: PlaybackController?
-
-    func body(content: Content) -> some View {
-        content.toolbarVisibility(player.map { $0.isFullscreen && $0.isPresented } == true ? .hidden : .automatic, for: .windowToolbar)
     }
 }
 

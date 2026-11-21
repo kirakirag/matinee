@@ -96,7 +96,7 @@ In the player:
 | C | Open the channel |
 | U | Undo the last SponsorBlock skip |
 | Return | Open in Brave, when a video needs a signed-in account |
-| Escape | Leave fullscreen, then shrink to the mini player |
+| Escape | Shrink to the mini player (leaving fullscreen) |
 | ⌘W | Stop the video, also from the mini player |
 | ⌘Z | Undo what the last head gesture did |
 

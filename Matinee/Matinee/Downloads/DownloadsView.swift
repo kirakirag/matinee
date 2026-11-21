@@ -133,8 +133,8 @@ private struct DownloadRow: View {
     }
 }
 
-/// In the toolbar while something downloads, from any section: the running downloads' progress together, and how
-/// many are left. Its own view, so progress redraws only this, not the window's toolbar.
+/// At the sidebar's bottom while something downloads, from any section: the running downloads' progress together, and
+/// how many are left. Its own view, so progress redraws only this, not the window.
 struct DownloadsIndicator: View {
     @Environment(DownloadManager.self) private var manager: DownloadManager?
     @Environment(Navigator.self) private var nav

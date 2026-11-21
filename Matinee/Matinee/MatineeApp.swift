@@ -168,6 +168,7 @@ struct MatineeApp: App {
                     if ModelSelfTest.isRequested { await ModelSelfTest.run(localModels) }
                 }
         }
+        .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1100, height: 720)
         .commands {
             // Lists the global keys. Presses are handled by Navigator's key monitor before the menu sees them.

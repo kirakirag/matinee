@@ -49,13 +49,18 @@ struct PlayerView: View {
         .padding(player.isMini ? 16 : 0)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
         .onGeometryChange(for: CGSize.self) { $0.size } action: { space = $0 }
-        .ignoresSafeArea(edges: player.isFullscreen ? .all : [])
+        .ignoresSafeArea(edges: player.isFullscreen ? .all : .top)
         .opacity(player.isPresented || player.isMini ? 1 : 0)
         .allowsHitTesting(player.isPresented || player.isMini)
         .onContinuousHover { if case .active = $0 { showControls() } }
         .onChange(of: player.commandCount) { showControls() }
         .onChange(of: player.isPaused) { showControls() }
         .onChange(of: player.phase) { showControls() }
+        // A text field left focused underneath (Search, after a pasted link) draws its caret and focus ring over the
+        // video. The player's keys don't need it.
+        .onChange(of: player.isPresented) { _, shown in
+            if shown, let window = NSApp.keyWindow, window.firstResponder is NSText { window.makeFirstResponder(nil) }
+        }
         .animation(.easeInOut(duration: 0.2), value: player.notice)
         // Only between two visible states: closing the mini player hides it at once rather than growing a black box.
         .animation(player.isPresented || player.isMini ? .easeInOut(duration: 0.25) : nil, value: player.isMini)

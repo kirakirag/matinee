@@ -132,7 +132,6 @@ final class Navigator {
                                         hasRoute: !(self.paths[self.section]?.isEmpty ?? true),
                                         playerNeedsAccount: self.player?.phase == .failed(.needsAccount),
                                         qualityMenuOpen: self.player?.menuIndex != nil,
-                                        fullscreen: self.player?.isFullscreen ?? false,
                                         panelOpen: self.player?.panelOpen ?? false,
                                         playerMini: self.player?.isMini ?? false,
                                         settingsShown: self.section == .settings) {
