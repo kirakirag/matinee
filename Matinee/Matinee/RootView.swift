@@ -35,8 +35,11 @@ struct RootView: View {
         // Always in the window (PlayerView hides itself when dismissed); this body reads nothing from the player.
         .overlay { if let player { PlayerView(player: player) } }
         .overlay(alignment: .bottom) { NoticeView() }
-        // No title bar or toolbar: the sidebar runs to the top of the window, under its buttons.
-        .toolbarVisibility(.hidden, for: .windowToolbar)
+        // An empty, see-through toolbar: the sidebar runs to the top of the window, under the window buttons. Hiding
+        // the toolbar would hide those buttons too.
+        .toolbar(removing: .title)
+        .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+        .modifier(FullscreenToolbar())
         .tabViewSidebarBottomBar { DownloadsIndicator() }
         .onAppear { nav.installKeyMonitor() }
         .onChange(of: recommendations) { _, on in if !on, nav.section == .forYou { nav.section = .subscriptions } }
@@ -78,6 +81,15 @@ struct RootView: View {
             ContentUnavailableView(section.title, systemImage: section.symbol,
                                    description: Text("Coming in a later build"))
         }
+    }
+}
+
+/// Hides the window toolbar while the player is up in fullscreen. A modifier, so RootView's body doesn't read the player.
+private struct FullscreenToolbar: ViewModifier {
+    @Environment(PlaybackController.self) private var player: PlaybackController?
+
+    func body(content: Content) -> some View {
+        content.toolbarVisibility(player.map { $0.isFullscreen && $0.isPresented } == true ? .hidden : .automatic, for: .windowToolbar)
     }
 }
 
